@@ -113,12 +113,6 @@ function App() {
     </div>
   );
 
-  const heart = () => (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="#C9A24A" aria-hidden="true">
-      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-    </svg>
-  );
-
   const Header = () => (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#080808]/90 backdrop-blur-xl border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -367,7 +361,7 @@ function App() {
                       <div className="text-[10px] tracking-[0.22em] uppercase text-[#A8A39A]">Recent memory</div>
                       <div className="mt-1 text-lg text-[#F3E7D0]">Family beach day</div>
                     </div>
-                    {heart()}
+                    <Heart />
                   </div>
                   <div className="mt-4 rounded-[1rem] h-28 bg-gradient-to-br from-[#6b4b24] via-[#b58a53] to-[#1a120d]" />
                 </div>
@@ -396,7 +390,7 @@ function App() {
             <Card key={item.title} className="p-7">
               <div className="text-[#C9A24A] text-[10px] tracking-[0.28em] uppercase flex items-center gap-2">
                 {item.title}
-                {heart()}
+                <Heart />
               </div>
               <div className="mt-4 font-serif text-2xl tracking-[-0.03em]">{item.title}</div>
               <p className="mt-3 text-sm leading-7 text-[#A8A39A]">{item.desc}</p>
@@ -442,7 +436,7 @@ function App() {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div>
           <div className="text-[10px] tracking-[0.3em] uppercase text-[#A8A39A] flex items-center gap-2">
-            Your private EverNear space {heart()}
+            Your private EverNear space <Heart />
           </div>
           <h2 className="mt-4 font-serif text-4xl sm:text-5xl tracking-[-0.05em] text-[#F3E7D0]">{spaceName}</h2>
           <p className="mt-4 max-w-2xl text-[#A8A39A] leading-7">
@@ -489,7 +483,7 @@ function App() {
     <main className="pt-28 pb-24 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
       <Card className="p-6 sm:p-8">
         <div className="text-[10px] tracking-[0.3em] uppercase text-[#A8A39A] flex items-center gap-2">
-          Add memory {heart()}
+          Add memory <Heart />
         </div>
         <h2 className="mt-4 font-serif text-4xl tracking-[-0.05em]">Send to your space</h2>
         <p className="mt-3 text-[#A8A39A] leading-7">
@@ -556,7 +550,7 @@ function App() {
     <main className="pt-28 pb-24 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto">
       <Card className="p-6 sm:p-8">
         <div className="text-[10px] tracking-[0.3em] uppercase text-[#A8A39A] flex items-center gap-2">
-          Invite people {heart()}
+          Invite people <Heart />
         </div>
         <h2 className="mt-4 font-serif text-4xl tracking-[-0.05em]">Share the private space</h2>
         <p className="mt-3 text-[#A8A39A] leading-7">
@@ -577,7 +571,7 @@ function App() {
             </button>
           </div>
           <div className="mt-4 text-[11px] tracking-[0.2em] uppercase text-[#8a857a]">
-            Shared privately • invite only {heart()}
+            Shared privately • invite only <Heart />
           </div>
         </div>
 
@@ -645,7 +639,7 @@ function App() {
 
             <div className="mt-6 rounded-[1.4rem] border border-[#C9A24A]/20 bg-[#111]/80 p-5">
               <div className="text-[10px] tracking-[0.24em] uppercase text-[#A8A39A] flex items-center gap-2">
-                Memory note {heart()}
+                Memory note <Heart />
               </div>
               <p className="mt-3 text-sm leading-7 text-[#A8A39A]">
                 This is where a shared memory stays visible, calm, and easy to revisit — like a small private archive of the best parts.
@@ -661,9 +655,9 @@ function App() {
     <footer className="border-t border-white/6 py-14 px-4 sm:px-6 lg:px-8 text-center">
       <div className="max-w-7xl mx-auto flex flex-col items-center gap-3 text-[#A8A39A]">
         <div className="flex items-center gap-2 text-[10px] tracking-[0.3em] uppercase">
-          {heart()}
+          <Heart />
           <span>© My EverNear — Moments shared privately.</span>
-          {heart()}
+          <Heart />
         </div>
         <div className="text-[10px] tracking-[0.24em] uppercase text-[#6d6d6d]">
           A private place for the best parts of life.
