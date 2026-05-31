@@ -2234,12 +2234,14 @@ function AuthView({
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handle()}
             />
             <input
               type="password"
               placeholder="Password"
               value={pass}
               onChange={(e) => setPass(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handle()}
             />
           </div>
           <button
