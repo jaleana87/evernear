@@ -2915,7 +2915,7 @@ function AddMemoryView({
             {(type === "photo" || type === "meme") && (
               <div>
                 <Lbl t={type === "photo" ? "Photo" : "Meme Image"} />
-                <div
+                <label
                   style={{
                     border: "1px dashed rgba(201,162,74,.22)",
                     borderRadius: 9,
@@ -2929,12 +2929,37 @@ function AddMemoryView({
                     gap: 8,
                   }}
                 >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const url = URL.createObjectURL(file);
+                        onSave({
+                          id: Date.now().toString(),
+                          type,
+                          title: title || file.name,
+                          caption,
+                          image: url,
+                          sharedBy: by,
+                          date: new Date().toLocaleDateString("en-US", {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                          }),
+                          liked: false,
+                        });
+                      }
+                    }}
+                  />
                   <UpIc sz={18} />
                   <span style={{ fontSize: 13 }}>Tap to upload</span>
                   <span style={{ fontSize: 11, opacity: 0.45 }}>
                     JPG, PNG, GIF · up to 20MB
                   </span>
-                </div>
+                </label>
               </div>
             )}
 
