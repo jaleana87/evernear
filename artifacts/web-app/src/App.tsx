@@ -3738,11 +3738,15 @@ export default function App() {
       }
     };
 
-    // Immediate session check — catches mobile where listener is slow
+    // Immediate session check with timeout fallback
+    const sessionTimeout = setTimeout(() => {
+      resolve(null);
+    }, 3000);
+
     supabase.auth.getSession().then(({ data }) => {
+      clearTimeout(sessionTimeout);
       resolve(data.session?.user?.id ?? null);
     });
-
     // Also listen for changes (login, logout)
     const {
       data: { subscription },
