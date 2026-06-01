@@ -3711,7 +3711,11 @@ export default function App() {
   const [memType, setMemType] = useState<MemType>("photo");
 
   useEffect(() => {
-    const unsub = onAuthChange(async (uid) => {
+    let settled = false;
+
+    const resolve = async (uid: string | null) => {
+      if (settled) return;
+      settled = true;
       setUserId(uid);
       setLoading(false);
       if (uid) {
@@ -3732,8 +3736,22 @@ export default function App() {
       } else {
         setView("landing");
       }
+    };
+
+    // Immediate session check — catches mobile where listener is slow
+    supabase.auth.getSession().then(({ data }) => {
+      resolve(data.session?.user?.id ?? null);
     });
-    return unsub;
+
+    // Also listen for changes (login, logout)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      settled = false; // allow re-resolution on auth change
+      resolve(session?.user?.id ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   function dbToLocal(m: any): MemoryItem {
