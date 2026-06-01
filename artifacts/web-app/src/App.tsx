@@ -3722,6 +3722,8 @@ export default function App() {
       setLoading(false);
     });
 
+    return () => subscription.unsubscribe();
+  }, []);
 
   function dbToLocal(m: any): MemoryItem {
     return {
