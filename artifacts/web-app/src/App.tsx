@@ -3757,7 +3757,7 @@ export default function App() {
         if (user) {
           setUserId(user.id);
           try {
-            const spaces = await loadMySpaces();
+            const spaces = await Promise.race([loadMySpaces(), new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 5000))]) as any[];
             if (spaces.length > 0) {
               const s = spaces[0];
               setDbSpace({
