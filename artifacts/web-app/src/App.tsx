@@ -3709,15 +3709,19 @@ export default function App() {
   );
   const [sel, setSel] = useState<MemoryItem | null>(null);
   const [memType, setMemType] = useState<MemType>("photo");
-
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
       setLoading(false);
     });
 
     // Immediate check for mobile
+    const timer = setTimeout(() => setLoading(false), 4000);
+
     supabase.auth.getSession().then(({ data }) => {
+      clearTimeout(timer);
       setUserId(data.session?.user?.id ?? null);
       setLoading(false);
     });
@@ -3743,33 +3747,39 @@ export default function App() {
     };
   }
 
-const handleAuth = useCallback(async (email: string, password: string, mode: "create" | "login") => {
-  try {
-    let user;
-    if (mode === "create") user = await signUp(email, password);
-    else user = await logIn(email, password);
-
-    if (user) {
-      setUserId(user.id);
+  const handleAuth = useCallback(
+    async (email: string, password: string, mode: "create" | "login") => {
       try {
-        const spaces = await loadMySpaces();
-        if (spaces.length > 0) {
-          const s = spaces[0];
-          setDbSpace({ id: s.id, name: s.name, invite_code: s.invite_code });
-          const mems = await loadMemories(s.id);
-          setMemories(mems.map(dbToLocal));
-          setView("dashboard");
-        } else {
-          setView("create-space");
+        let user;
+        if (mode === "create") user = await signUp(email, password);
+        else user = await logIn(email, password);
+        if (user) {
+          setUserId(user.id);
+          try {
+            const spaces = await loadMySpaces();
+            if (spaces.length > 0) {
+              const s = spaces[0];
+              setDbSpace({
+                id: s.id,
+                name: s.name,
+                invite_code: s.invite_code,
+              });
+              const mems = await loadMemories(s.id);
+              setMemories(mems.map(dbToLocal));
+              setView("dashboard");
+            } else {
+              setView("create-space");
+            }
+          } catch {
+            setView("create-space");
+          }
         }
-      } catch {
-        setView("create-space");
+      } catch (e: any) {
+        alert(e.message ?? "Something went wrong. Please try again.");
       }
-    }
-  } catch (e: any) {
-    alert(e.message ?? "Something went wrong. Please try again.");
-  }
-}, []);
+    },
+    [],
+  );
   const handleCreateSpace = useCallback(async (name: string) => {
     try {
       const s = await createSpace(name);
