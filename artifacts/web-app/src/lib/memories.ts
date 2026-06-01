@@ -22,7 +22,6 @@ export async function loadMemories(spaceId: string): Promise<Memory[]> {
     .select("*")
     .eq("space_id", spaceId)
     .order("created_at", { ascending: false });
-
   if (error) throw error;
   return (data ?? []).map(hydrate);
 }
@@ -42,7 +41,6 @@ export async function addMemory(input: NewMemoryInput): Promise<Memory> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not logged in");
-
   const { data, error } = await supabase
     .from("memories")
     .insert({
@@ -58,7 +56,6 @@ export async function addMemory(input: NewMemoryInput): Promise<Memory> {
     })
     .select()
     .single();
-
   if (error) throw error;
   return hydrate(data);
 }
@@ -71,16 +68,10 @@ export async function toggleLike(
     .from("memories")
     .update({ liked: !currentLiked })
     .eq("id", memoryId);
-
   if (error) throw error;
 }
 
-export async function deleteMemory(memoryId: string): Promise<void> {
-  const { error } = await supabase.from("memories").delete().eq("id", memoryId);
-
-  if (error) throw error;
-}
-export async function deleteMemory(id: string) {
+export async function deleteMemory(id: string): Promise<void> {
   const { error } = await supabase.from("memories").delete().eq("id", id);
   if (error) throw error;
 }
@@ -93,36 +84,7 @@ export async function updateMemory(
     url?: string;
     shared_by?: string;
   },
-) {
-  const { data, error } = await supabase
-    .from("memories")
-    .update(fields)
-    .eq("id", id)
-    .select()
-    .single();
+): Promise<void> {
+  const { error } = await supabase.from("memories").update(fields).eq("id", id);
   if (error) throw error;
-  return data;
-}
-export async function deleteMemory(id: string) {
-  const { error } = await supabase.from("memories").delete().eq("id", id);
-  if (error) throw error;
-}
-
-export async function updateMemory(
-  id: string,
-  fields: {
-    title?: string;
-    caption?: string;
-    url?: string;
-    shared_by?: string;
-  },
-) {
-  const { data, error } = await supabase
-    .from("memories")
-    .update(fields)
-    .eq("id", id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
 }
