@@ -3753,11 +3753,16 @@ export default function App() {
         let user;
         if (mode === "create") user = await signUp(email, password);
         else user = await logIn(email, password);
-        alert("user: " + JSON.stringify(user));
+
         if (user) {
           setUserId(user.id);
           try {
-            const spaces = await Promise.race([loadMySpaces(), new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 5000))]) as any[];
+            const spaces = (await Promise.race([
+              loadMySpaces(),
+              new Promise((_, r) =>
+                setTimeout(() => r(new Error("timeout")), 5000),
+              ),
+            ])) as any[];
             if (spaces.length > 0) {
               const s = spaces[0];
               setDbSpace({
