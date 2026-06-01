@@ -3177,7 +3177,7 @@ export default function App() {
       <style>{CSS}</style>
       {view === "guest-name" && <GuestNameView onDone={(name) => { setGuestName(name); setView("guest-space"); }} />}
       {view === "guest-space" && guestSpace && (
-        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName} onAddMemory={() => { setGuestMemType("photo"); setView("guest-add"); }} onSel={(m) => { setSel(m); setView("detail"); }} />
+        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName} onAddMemory={() => { setGuestMemType(null as any); setView("guest-add"); }} onSel={(m) => { setSel(m); setView("detail"); }} />
       )}
       {view === "guest-add" && guestSpace && (
         <div style={{ minHeight: "100vh", background: "var(--black)" }}>
