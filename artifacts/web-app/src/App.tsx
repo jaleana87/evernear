@@ -2843,6 +2843,148 @@ function DashboardView({
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// INVITE VIEW
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function InviteView({ space, onNav }: { space: Space; onNav: (v: View) => void }) {
+  const [copied, setCopied] = useState(false);
+  const spaceUrl = space.spaceCode ? `${window.location.origin}/space/${space.spaceCode}` : space.inviteLink;
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <Header showBack onBack={() => onNav("dashboard")} onNav={onNav} />
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "60px 24px" }}>
+        <div className="card fade-in" style={{ width: "100%", maxWidth: 480, padding: "48px 42px", textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 20 }}>🔗</div>
+          <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 30, fontWeight: 400, color: "var(--cream)", marginBottom: 12 }}>Share your space</h2>
+          <p style={{ fontSize: 14, color: "var(--c-dim)", lineHeight: 1.72, marginBottom: 8 }}>Anyone with this link can view and add memories to your shared space.</p>
+          <p style={{ fontSize: 13, color: "var(--c-dim)", lineHeight: 1.6, marginBottom: 28, opacity: 0.7 }}>Program this URL onto your NFC keychain so anyone can tap and instantly open your shared memories.</p>
+          <div style={{ background: "var(--s2)", border: "1px solid rgba(255,255,255,.05)", borderRadius: 9, padding: "14px 18px", marginBottom: 16, textAlign: "left" }}>
+            <span style={{ fontSize: 13, color: "var(--gold)", wordBreak: "break-all" }}>{spaceUrl}</span>
+          </div>
+          <button className="btn-gold" style={{ width: "100%" }} onClick={() => { navigator.clipboard.writeText(spaceUrl).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2200); }}>
+            {copied ? "Copied ✓" : "Copy Link"}
+          </button>
+          <p style={{ fontSize: 11, color: "var(--c-dim)", marginTop: 20, opacity: 0.35, lineHeight: 1.65 }}>This is your shared space link.<br />Program it to both keychains.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DETAIL VIEW
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function DetailView({ mem, onNav, onLike, onDelete, isGuest = false }: { mem: MemoryItem; onNav: (v: View) => void; onLike: (id: string) => void; onDelete: (id: string) => void; isGuest?: boolean }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const toggleAudio = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing) { a.pause(); setPlaying(false); }
+    else { a.play().catch(() => {}); setPlaying(true); }
+  };
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <Header showBack onBack={() => onNav(isGuest ? "guest-space" : "dashboard")} onNav={onNav} />
+      <div style={{ maxWidth: 640, margin: "0 auto", width: "100%", padding: "48px 28px" }}>
+        <div className="card fade-in" style={{ overflow: "hidden" }}>
+          {(mem.type === "photo" || mem.type === "meme") && <Pic src={mem.image} alt={mem.title} h={220} r={0} />}
+          <div style={{ padding: "28px 32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <Badge type={mem.type} />
+              <button className={`hbtn${mem.liked ? " liked" : ""}`} onClick={() => onLike(mem.id)}><Hrt f={mem.liked} sz={14} />{mem.liked ? "Saved" : "Save"}</button>
+            </div>
+            {mem.type === "voice" && mem.url && (
+              <div style={{ background: "rgba(201,162,74,.04)", border: "1px solid rgba(201,162,74,.1)", borderRadius: 10, padding: "18px 22px", marginBottom: 24 }}>
+                <audio ref={audioRef} src={mem.url} preload="metadata"
+                  onTimeUpdate={(e) => { const a = e.currentTarget; if (a.duration) setProgress((a.currentTime / a.duration) * 100); }}
+                  onEnded={() => { setPlaying(false); setProgress(0); }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 10 }}>
+                  <button onClick={toggleAudio} style={{ width: 44, height: 44, borderRadius: "50%", background: playing ? "var(--gold)" : "transparent", border: "1px solid rgba(201,162,74,.38)", color: playing ? "#100c00" : "var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                    {playing ? <Pause sz={13} /> : <Play sz={13} />}
+                  </button>
+                  <Waveform playing={playing} progress={progress} />
+                </div>
+                <div style={{ height: 1.5, background: "rgba(201,162,74,.12)", borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${progress}%`, background: "var(--gold)", transition: "width .12s linear" }} />
+                </div>
+              </div>
+            )}
+            {mem.type === "music" && mem.url && (
+              <a href={mem.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(148,130,185,.07)", border: "1px solid rgba(148,130,185,.22)", borderRadius: 10, padding: "13px 17px", marginBottom: 24, textDecoration: "none", color: "#a898c8", fontSize: 14 }}>
+                <MusicIc sz={15} /><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mem.url}</span><ExtLink sz={13} />
+              </a>
+            )}
+            <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 32, fontWeight: 400, color: "var(--cream)", marginBottom: 16, lineHeight: 1.2 }}>{mem.title}</h1>
+            <p style={{ fontSize: mem.type === "note" ? 20 : 15, fontFamily: mem.type === "note" ? "'Cormorant Garamond',serif" : "'Jost',sans-serif", fontStyle: mem.type === "note" ? "italic" : "normal", color: "var(--c-mid)", lineHeight: 1.84, marginBottom: 28 } as React.CSSProperties}>{mem.caption}</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 20, borderTop: "1px solid rgba(255,255,255,.042)" }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--c-dim)", opacity: 0.38, marginBottom: 4 }}>Shared by</div>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: "var(--gold)" }}>{mem.sharedBy}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--c-dim)", opacity: 0.38, marginBottom: 4 }}>Date</div>
+                <div style={{ fontSize: 13, color: "var(--c-dim)" }}>{mem.date}</div>
+              </div>
+            </div>
+            {!isGuest && (
+              <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <button className="btn-ghost" style={{ flex: 1, padding: "11px 0" }} onClick={() => onNav("edit")}>Edit</button>
+                <button onClick={() => onDelete(mem.id)}
+                  style={{ flex: 1, padding: "11px 0", background: "transparent", border: "1px solid rgba(195,80,80,.3)", borderRadius: "var(--rs)", color: "rgba(220,100,100,.8)", fontFamily: "'Jost',sans-serif", fontSize: 12, fontWeight: 400, letterSpacing: ".12em", textTransform: "uppercase", cursor: "pointer", transition: "border-color .2s,color .2s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(220,80,80,.6)"; e.currentTarget.style.color = "rgba(240,110,110,1)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(195,80,80,.3)"; e.currentTarget.style.color = "rgba(220,100,100,.8)"; }}>
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EDIT MEMORY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function EditMemoryView({ mem, onNav, onSave }: { mem: MemoryItem; onNav: (v: View) => void; onSave: (updated: MemoryItem) => void }) {
+  const [title, setTitle] = useState(mem.title);
+  const [caption, setCaption] = useState(mem.caption);
+  const [musicUrl, setMusicUrl] = useState(mem.url ?? "");
+  const [by, setBy] = useState(mem.sharedBy);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!title.trim() || !by.trim()) return;
+    setBusy(true);
+    await onSave({ ...mem, title: title.trim(), caption: caption.trim(), url: mem.type === "music" ? musicUrl : mem.url, sharedBy: by.trim() });
+    setBusy(false);
+  };
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <Header showBack onBack={() => onNav("detail")} onNav={onNav} />
+      <div style={{ maxWidth: 560, margin: "0 auto", width: "100%", padding: "48px 28px" }}>
+        <Rule />
+        <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 34, fontWeight: 400, marginBottom: 34, color: "var(--cream)" }}>Edit memory</h2>
+        <div className="card fade-in" style={{ padding: "36px 32px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+            <div><Lbl t="Title" /><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+            {mem.type !== "voice" && <div><Lbl t={mem.type === "note" ? "Your note" : "Caption"} /><textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={3} style={{ resize: "vertical" }} /></div>}
+            {mem.type === "music" && <div><Lbl t="Music Link" /><input type="url" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} /></div>}
+            <div><Lbl t="Shared By" /><input value={by} onChange={(e) => setBy(e.target.value)} /></div>
+            <button className="btn-gold" style={{ width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }} onClick={save} disabled={busy}>{busy ? "Saving…" : "Save Changes"}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP ROOT
