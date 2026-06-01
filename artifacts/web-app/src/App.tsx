@@ -91,7 +91,8 @@ type View =
   | "edit"
   | "guest-space"
   | "guest-name"
-  | "guest-add";
+  | "guest-add"
+  | "guest-pick-type";
 
 interface MemoryItem {
   id: string;
@@ -3177,14 +3178,33 @@ export default function App() {
       <style>{CSS}</style>
       {view === "guest-name" && <GuestNameView onDone={(name) => { setGuestName(name); setView("guest-space"); }} />}
       {view === "guest-space" && guestSpace && (
-        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName} onAddMemory={() => { setGuestMemType(null as any); setView("guest-add"); }} onSel={(m) => { setSel(m); setView("detail"); }} />
+        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName} onAddMemory={() => { setView("guest-pick-type"); }} onSel={(m) => { setSel(m); setView("detail"); }} />
       )}
-      {view === "guest-add" && guestSpace && (
+      {view === "guest-pick-type" {view === "guest-add" && guestSpace && ({view === "guest-add" && guestSpace && ( (
+        <div style={{ minHeight: "100vh", background: "var(--black)" }}>
+          <header style={{ position:"sticky", top:0, zIndex:50, background:"rgba(11,10,9,.97)", backdropFilter:"blur(24px)", borderBottom:"1px solid rgba(255,255,255,.042)", padding:"0 24px", height:70, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <Logo compact/>
+            <button onClick={() => setView("guest-space")} style={{ background:"none", border:"none", color:"var(--c-dim)", cursor:"pointer", fontFamily:"Jost", fontSize:13 }}>Cancel</button>
+          </header>
+          <div style={{ maxWidth:600, margin:"0 auto", padding:"48px 28px" }}>
+            <h2 style={{ fontFamily:"Cormorant Garamond", fontSize:34, fontWeight:400, marginBottom:28, color:"var(--cream)" }}>What kind of memory?</h2>
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {(["photo","note","voice","music","meme"] as MemType[]).map((t) => (
+                <button key={t} onClick={() => { setGuestMemType(t); setView("guest-add"); }} style={{ background:"var(--s1)", border:"1px solid var(--sb)", borderRadius:"var(--r)", padding:"22px 28px", cursor:"pointer", display:"flex", alignItems:"center", gap:20, width:"100%", textAlign:"left" }}>
+                  <span style={{ fontSize:28 }}>{T[t].icon}</span>
+                  <div style={{ fontFamily:"Jost", fontSize:13, fontWeight:500, letterSpacing:".12em", textTransform:"uppercase", color:T[t].color }}>{T[t].label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {view === "guest-add" {view === "guest-add" && guestSpace && ({view === "guest-add" && guestSpace && ( guestSpace {view === "guest-add" && guestSpace && ({view === "guest-add" && guestSpace && ( (
         <div style={{ minHeight: "100vh", background: "var(--black)" }}>
           <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(11,10,9,.97)", backdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,.042)", padding: "0 24px", height: 70, display: "flex", alignItems: "center" }}>
             <Logo compact />
           </header>
-          <AddMemoryForm memType={guestMemType} sharedBy={guestName} onBack={() => setView("guest-space")}
+          <AddMemoryForm memType={guestMemType || "photo"} sharedBy={guestName} onBack={() => setView("guest-space")}
             onSave={async (item) => { await handleGuestSave(item); }} />
         </div>
       )}
