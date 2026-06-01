@@ -274,7 +274,15 @@ const CSS = `
   hr.dv { border:none; border-top:1px solid rgba(255,255,255,.042) }
   .sec { max-width:1020px; margin:0 auto; width:100%; padding:88px 36px }
   .secs { max-width:700px; margin:0 auto; width:100%; padding:88px 36px }
-  @media(max-width:720px){ .sec,.secs{padding:60px 20px} .lsgrid{grid-template-columns:repeat(2,1fr)!important} .fgrid{grid-template-columns:1fr!important} .sgrid{grid-template-columns:1fr!important} .mgrid{grid-template-columns:1fr!important} }
+ @media(max-width:720px){
+    .sec,.secs { padding:60px 20px }
+    .lsgrid  { grid-template-columns:repeat(2,1fr)!important }
+    .fgrid   { grid-template-columns:1fr!important }
+    .sgrid   { grid-template-columns:1fr!important }
+    .mgrid   { grid-template-columns:1fr!important }
+    header   { padding:0 16px!important; height:70px!important }
+    header .btn-ghost { display:none!important }
+  }
   .type-card { background:var(--s1); border:1px solid var(--sb); border-radius:var(--r); padding:28px 24px; cursor:pointer; transition:all .25s; display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center; }
   .type-card:hover { border-color:var(--gold-d); transform:translateY(-4px); box-shadow:0 12px 38px rgba(0,0,0,.55),0 0 38px rgba(201,162,74,.1); }
   .rec-btn { width:72px; height:72px; border-radius:50%; border:2px solid rgba(201,162,74,.4); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; margin:0 auto; }
