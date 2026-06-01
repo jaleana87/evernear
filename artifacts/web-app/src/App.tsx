@@ -281,7 +281,8 @@ const CSS = `
     .sgrid   { grid-template-columns:1fr!important }
     .mgrid   { grid-template-columns:1fr!important }
     header   { padding:0 16px!important; height:70px!important }
-    header .btn-ghost { display:none!important }
+    .hdr-btns { display:none!important }
+    .hdr-menu { display:flex!important }
   }
   .type-card { background:var(--s1); border:1px solid var(--sb); border-radius:var(--r); padding:28px 24px; cursor:pointer; transition:all .25s; display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center; }
   .type-card:hover { border-color:var(--gold-d); transform:translateY(-4px); box-shadow:0 12px 38px rgba(0,0,0,.55),0 0 38px rgba(201,162,74,.1); }
@@ -718,6 +719,7 @@ function Header({
   onNav?: (v: View) => void;
   right?: React.ReactNode;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <header
       style={{
@@ -771,11 +773,68 @@ function Header({
           <Logo compact={showBack} />
         </button>
       </div>
+
+      {/* Desktop buttons */}
       {right && (
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div
+          className="hdr-btns"
+          style={{ display: "flex", gap: 10, alignItems: "center" }}
+        >
           {right}
         </div>
       )}
+
+      {/* Mobile hamburger */}
+      <div
+        className="hdr-menu"
+        style={{ display: "none", position: "relative" }}
+      >
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
+          style={{
+            background: "none",
+            border: "1px solid rgba(255,255,255,.1)",
+            borderRadius: 8,
+            color: "var(--cream)",
+            cursor: "pointer",
+            padding: "8px 12px",
+            fontFamily: "'Jost',sans-serif",
+            fontSize: 18,
+            lineHeight: 1,
+          }}
+        >
+          {menuOpen ? "✕" : "☰"}
+        </button>
+        {menuOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 10px)",
+              right: 0,
+              background: "var(--s1)",
+              border: "1px solid rgba(255,255,255,.08)",
+              borderRadius: 12,
+              padding: "8px",
+              minWidth: 180,
+              boxShadow: "0 12px 38px rgba(0,0,0,.6)",
+              zIndex: 100,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            {right &&
+              React.Children.map(right as React.ReactElement, (child) => (
+                <div
+                  onClick={() => setMenuOpen(false)}
+                  style={{ borderRadius: 8, overflow: "hidden" }}
+                >
+                  {child}
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
     </header>
   );
 }
@@ -1950,7 +2009,7 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH
-// ═══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════ic�════════════════════════════════════════════
 
 function AuthView({
   onNav,
