@@ -3753,7 +3753,7 @@ export default function App() {
         let user;
         if (mode === "create") user = await signUp(email, password);
         else user = await logIn(email, password);
-        alert("Login returned: " + (user ? user.id : "null"));
+        alert("user: " + JSON.stringify(user));
         if (user) {
           setUserId(user.id);
           try {
