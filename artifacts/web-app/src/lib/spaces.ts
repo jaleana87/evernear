@@ -2,7 +2,9 @@ import { supabase } from "./supabase";
 import type { Space } from "./supabase";
 
 export async function createSpace(name: string): Promise<Space> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session?.user) throw new Error("Not logged in");
   const { data, error } = await supabase
     .from("spaces")
@@ -17,7 +19,9 @@ export async function createSpace(name: string): Promise<Space> {
 }
 
 export async function loadMySpaces(): Promise<Space[]> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session?.user) return [];
   const userId = session.user.id;
 
@@ -51,8 +55,21 @@ export async function loadSpace(spaceId: string): Promise<Space | null> {
   return data;
 }
 
+// Load a space by its invite_code — used for NFC/guest flow
+export async function loadSpaceByCode(code: string): Promise<Space | null> {
+  const { data, error } = await supabase
+    .from("spaces")
+    .select("*")
+    .eq("invite_code", code)
+    .single();
+  if (error) return null;
+  return data;
+}
+
 export async function joinByInviteCode(inviteCode: string): Promise<Space> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session?.user) throw new Error("Not logged in");
   const { data: space, error: spaceError } = await supabase
     .from("spaces")
@@ -67,5 +84,5 @@ export async function joinByInviteCode(inviteCode: string): Promise<Space> {
 }
 
 export function getInviteUrl(inviteCode: string): string {
-  return `${window.location.origin}/join/${inviteCode}`;
+  return `${window.location.origin}/space/${inviteCode}`;
 }

@@ -1,10 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { onAuthChange } from "./lib/auth";
-import { logIn, signUp, logOut } from "./lib/auth";
-import { createSpace, loadMySpaces, getInviteUrl } from "./lib/spaces";
+import { logIn, signUp } from "./lib/auth";
+import {
+  createSpace,
+  loadMySpaces,
+  getInviteUrl,
+  loadSpaceByCode,
+} from "./lib/spaces";
 import {
   loadMemories,
   addMemory,
+  addGuestMemory,
   toggleLike as sbToggleLike,
   deleteMemory,
   updateMemory,
@@ -43,80 +49,17 @@ const LIFESTYLE_CARDS = [
   },
 ];
 
-const DEMO_LINK = {
-  title: "The song we played on repeat",
-  url: "https://www.youtube.com/watch?v=AIOAlaACuv4",
-  caption:
-    "This was our road trip anthem. Three hours, six plays, zero complaints.",
-  sharedBy: "Alex",
-  date: "July 4, 2024",
-};
-
-const SAMPLE_MEMORIES: MemoryItem[] = [
-  {
-    id: "1",
-    type: "photo",
-    title: "Family beach day",
-    caption: "The kind of afternoon that feels like it should stay forever.",
-    image:
-      "https://ooyytlibotujvjzkbipy.supabase.co/storage/v1/object/public/demo-assets/familybeachday.png",
-    sharedBy: "Mom",
-    date: "June 12, 2024",
-    liked: true,
-  },
-  {
-    id: "2",
-    type: "note",
-    title: "I love you more than all the stars",
-    caption:
-      "I love you more than all the stars. More than every grain of sand on every beach we've ever walked. — Dad",
-    sharedBy: "Dad",
-    date: "March 3, 2024",
-    liked: false,
-  },
-  {
-    id: "3",
-    type: "voice",
-    title: "Voice note from Mom",
-    caption: "Left this the morning of my birthday. I'll keep it forever.",
-    sharedBy: "Mom",
-    date: "August 19, 2024",
-    liked: true,
-  },
-  {
-    id: "4",
-    type: "meme",
-    title: "The one that made us laugh",
-    caption: "The exact thing that made us both laugh at 1:12am.",
-    image:
-      "https://ooyytlibotujvjzkbipy.supabase.co/storage/v1/object/public/demo-assets/meme.png",
-    sharedBy: "Jamie",
-    date: "November 1, 2024",
-    liked: false,
-  },
-  {
-    id: "5",
-    type: "music",
-    title: DEMO_LINK.title,
-    caption: DEMO_LINK.caption,
-    url: DEMO_LINK.url,
-    sharedBy: DEMO_LINK.sharedBy,
-    date: DEMO_LINK.date,
-    liked: true,
-  },
-];
-
 const FEATURES = [
   {
-    title: "Private by invitation",
-    body: "Your space belongs only to the people you choose. No public profiles, no discovery, no strangers.",
+    title: "A keepsake, not an app",
+    body: "Two keychains. One shared world. Tap to open a private space that belongs only to the two of you.",
   },
   {
-    title: "No noise, no feed",
-    body: "No algorithms. No distractions. Just your moments, exactly where you left them.",
+    title: "No passwords, no friction",
+    body: "Tap the keychain and you're in. The physical object is the key — no accounts, no logins, just memories.",
   },
   {
-    title: "Made for meaningful moments",
+    title: "Every kind of moment",
     body: "Photos, notes, voice messages, memes, music. The everyday things that become extraordinary with time.",
   },
 ];
@@ -125,7 +68,7 @@ const COPY = {
   eyebrow: "Moments shared privately",
   headline1: "The moments you",
   headline2: "never want buried.",
-  sub: "Photos, notes, voice messages, memes, and music — saved privately with the people who matter most.",
+  sub: "Two keychains. One private space. Tap to instantly open a world of shared memories — photos, notes, voice messages, music, and more.",
   quote: "Not to post. Not to share. Just to keep.",
   cta: "Create Your EverNear",
 };
@@ -145,7 +88,10 @@ type View =
   | "add-memory"
   | "invite"
   | "detail"
-  | "edit";
+  | "edit"
+  | "guest-space"
+  | "guest-name"
+  | "guest-add";
 
 interface MemoryItem {
   id: string;
@@ -159,9 +105,11 @@ interface MemoryItem {
   liked: boolean;
 }
 interface Space {
+  id: string;
   name: string;
   memories: MemoryItem[];
   inviteLink: string;
+  spaceCode?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -227,68 +175,63 @@ const T: Record<
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Jost:wght@300;400;500&display=swap');
-  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0 }
-  :root {
-    --black:#0b0a09; --s1:#1b1916; --s2:#222018;
-    --gold:#C9A24A; --gold-lt:#D6B76A; --gold-dk:#8F6A2A; --gold-d:rgba(201,162,74,0.36);
-    --cream:#ece6dd; --c-mid:#c0b9b0; --c-dim:#887f78; --c-faint:rgba(236,230,221,0.04);
-    --sb:rgba(255,255,255,0.05); --r:14px; --rs:9px;
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --black:#0b0a09;--s1:#1b1916;--s2:#222018;
+    --gold:#C9A24A;--gold-lt:#D6B76A;--gold-dk:#8F6A2A;--gold-d:rgba(201,162,74,0.36);
+    --cream:#ece6dd;--c-mid:#c0b9b0;--c-dim:#887f78;
+    --sb:rgba(255,255,255,0.05);--r:14px;--rs:9px;
     --sh:0 2px 8px rgba(0,0,0,0.55),0 0 28px rgba(201,162,74,0.05);
   }
-  html,body,#root { min-height:100%; background:var(--black); color:var(--cream); font-family:'Jost',sans-serif; font-weight:300; -webkit-font-smoothing:antialiased; letter-spacing:0.015em; }
-  h1,h2,h3,h4 { font-family:'Cormorant Garamond',serif; font-weight:400; letter-spacing:-0.01em }
-  input,textarea,select { background:var(--s1); border:1px solid var(--sb); border-radius:var(--rs); color:var(--cream); font-family:'Jost',sans-serif; font-size:15px; font-weight:300; padding:13px 16px; width:100%; outline:none; transition:border-color .25s; letter-spacing:0.02em; }
-  input::placeholder,textarea::placeholder { color:var(--c-dim); opacity:.7 }
-  input:focus,textarea:focus,select:focus { border-color:var(--gold-d) }
-  select option { background:var(--s2) }
-  .btn-gold { background:linear-gradient(135deg,var(--gold-dk) 0%,var(--gold-lt) 46%,var(--gold-dk) 100%); color:#100c00; border:none; border-radius:var(--rs); font-family:'Jost',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.16em; text-transform:uppercase; padding:14px 36px; cursor:pointer; transition:opacity .2s,transform .15s; white-space:nowrap; }
-  .btn-gold:hover { opacity:.86; transform:translateY(-1px) }
-  .btn-gold:active { transform:scale(.98) }
-  .btn-ghost { background:transparent; color:var(--c-mid); border:1px solid rgba(255,255,255,.11); border-radius:var(--rs); font-family:'Jost',sans-serif; font-size:12px; font-weight:400; letter-spacing:0.12em; text-transform:uppercase; padding:13px 28px; cursor:pointer; transition:border-color .2s,color .2s; white-space:nowrap; }
-  .btn-ghost:hover { border-color:var(--gold-d); color:var(--gold) }
-  .btn-text { background:none; border:none; color:var(--gold); font-family:'Jost',sans-serif; font-size:13px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(201,162,74,.35); transition:opacity .2s; letter-spacing:0.04em; }
-  .btn-text:hover { opacity:.7 }
-  .card { background:var(--s1); border:1px solid var(--sb); border-radius:var(--r); box-shadow:var(--sh); transition:border-color .3s,transform .3s,box-shadow .3s; }
-  .card:hover { border-color:rgba(201,162,74,.15); transform:translateY(-3px); box-shadow:0 12px 38px rgba(0,0,0,.55),0 0 38px rgba(201,162,74,.07); }
-  .tab-btn { background:transparent; border:none; color:var(--c-dim); font-family:'Jost',sans-serif; font-size:11px; font-weight:400; letter-spacing:.1em; text-transform:uppercase; padding:11px 20px; cursor:pointer; border-bottom:1px solid transparent; transition:color .2s,border-color .2s; white-space:nowrap; }
-  .tab-btn:hover { color:var(--cream) }
-  .tab-btn.active { color:var(--gold); border-bottom-color:var(--gold) }
-  .hbtn { background:none; border:none; cursor:pointer; padding:4px 6px; transition:transform .15s; color:var(--c-dim); display:flex; align-items:center; gap:4px; font-size:12px; font-family:'Jost',sans-serif; }
-  .hbtn:hover { transform:scale(1.1); color:var(--gold) }
-  .hbtn.liked { color:var(--gold) }
-  .wv { display:flex; align-items:center; gap:3px; height:28px; flex:1; overflow:hidden }
-  .wvb { width:2.5px; border-radius:2px; flex-shrink:0; animation:wvp 1.65s ease-in-out infinite; }
-  @keyframes wvp { 0%,100%{transform:scaleY(.28);opacity:.35} 50%{transform:scaleY(1);opacity:.92} }
-  .lsc { border-radius:14px; overflow:hidden; position:relative; background:var(--s2); aspect-ratio:3/4; box-shadow:0 6px 24px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.04); transition:transform .45s cubic-bezier(.25,.46,.45,.94),box-shadow .45s; }
-  .lsc:hover { transform:translateY(-7px) scale(1.015); box-shadow:0 24px 52px rgba(0,0,0,.65),0 0 0 1px rgba(201,162,74,.2) }
-  .lsc img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top; transition:transform .65s cubic-bezier(.25,.46,.45,.94) }
-  .lsc:hover img { transform:scale(1.07) }
-  .iph { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px dashed rgba(201,162,74,.18); border-radius:inherit; color:rgba(201,162,74,.45); font-family:'Jost',sans-serif; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
-  .fade-in { animation:fu .44s ease both }
-  @keyframes fu { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes shim { 0%,100%{opacity:1} 50%{opacity:.45} }
-  ::-webkit-scrollbar { width:3px }
-  ::-webkit-scrollbar-track { background:transparent }
-  ::-webkit-scrollbar-thumb { background:rgba(201,162,74,.18); border-radius:3px }
-  .gt { background:linear-gradient(135deg,var(--gold) 0%,var(--gold-lt) 50%,var(--gold) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-  hr.dv { border:none; border-top:1px solid rgba(255,255,255,.042) }
-  .sec { max-width:1020px; margin:0 auto; width:100%; padding:88px 36px }
-  .secs { max-width:700px; margin:0 auto; width:100%; padding:88px 36px }
- @media(max-width:720px){
-    .sec,.secs { padding:60px 20px }
-    .lsgrid  { grid-template-columns:repeat(2,1fr)!important }
-    .fgrid   { grid-template-columns:1fr!important }
-    .sgrid   { grid-template-columns:1fr!important }
-    .mgrid   { grid-template-columns:1fr!important }
-    header   { padding:0 16px!important; height:70px!important }
-    .hdr-btns { display:none!important }
-    .hdr-menu { display:flex!important }
+  html,body,#root{min-height:100%;background:var(--black);color:var(--cream);font-family:'Jost',sans-serif;font-weight:300;-webkit-font-smoothing:antialiased;letter-spacing:0.015em;}
+  h1,h2,h3,h4{font-family:'Cormorant Garamond',serif;font-weight:400;letter-spacing:-0.01em}
+  input,textarea,select{background:var(--s1);border:1px solid var(--sb);border-radius:var(--rs);color:var(--cream);font-family:'Jost',sans-serif;font-size:15px;font-weight:300;padding:13px 16px;width:100%;outline:none;transition:border-color .25s;letter-spacing:0.02em;}
+  input::placeholder,textarea::placeholder{color:var(--c-dim);opacity:.7}
+  input:focus,textarea:focus,select:focus{border-color:var(--gold-d)}
+  select option{background:var(--s2)}
+  .btn-gold{background:linear-gradient(135deg,var(--gold-dk) 0%,var(--gold-lt) 46%,var(--gold-dk) 100%);color:#100c00;border:none;border-radius:var(--rs);font-family:'Jost',sans-serif;font-size:12px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;padding:14px 36px;cursor:pointer;transition:opacity .2s,transform .15s;white-space:nowrap;}
+  .btn-gold:hover{opacity:.86;transform:translateY(-1px)}
+  .btn-gold:active{transform:scale(.98)}
+  .btn-ghost{background:transparent;color:var(--c-mid);border:1px solid rgba(255,255,255,.11);border-radius:var(--rs);font-family:'Jost',sans-serif;font-size:12px;font-weight:400;letter-spacing:0.12em;text-transform:uppercase;padding:13px 28px;cursor:pointer;transition:border-color .2s,color .2s;white-space:nowrap;}
+  .btn-ghost:hover{border-color:var(--gold-d);color:var(--gold)}
+  .btn-text{background:none;border:none;color:var(--gold);font-family:'Jost',sans-serif;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(201,162,74,.35);transition:opacity .2s;letter-spacing:0.04em;}
+  .btn-text:hover{opacity:.7}
+  .card{background:var(--s1);border:1px solid var(--sb);border-radius:var(--r);box-shadow:var(--sh);transition:border-color .3s,transform .3s,box-shadow .3s;}
+  .card:hover{border-color:rgba(201,162,74,.15);transform:translateY(-3px);box-shadow:0 12px 38px rgba(0,0,0,.55),0 0 38px rgba(201,162,74,.07);}
+  .tab-btn{background:transparent;border:none;color:var(--c-dim);font-family:'Jost',sans-serif;font-size:11px;font-weight:400;letter-spacing:.1em;text-transform:uppercase;padding:11px 20px;cursor:pointer;border-bottom:1px solid transparent;transition:color .2s,border-color .2s;white-space:nowrap;}
+  .tab-btn:hover{color:var(--cream)}
+  .tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
+  .hbtn{background:none;border:none;cursor:pointer;padding:4px 6px;transition:transform .15s;color:var(--c-dim);display:flex;align-items:center;gap:4px;font-size:12px;font-family:'Jost',sans-serif;}
+  .hbtn:hover{transform:scale(1.1);color:var(--gold)}
+  .hbtn.liked{color:var(--gold)}
+  .wv{display:flex;align-items:center;gap:3px;height:28px;flex:1;overflow:hidden}
+  .wvb{width:2.5px;border-radius:2px;flex-shrink:0;animation:wvp 1.65s ease-in-out infinite;}
+  @keyframes wvp{0%,100%{transform:scaleY(.28);opacity:.35}50%{transform:scaleY(1);opacity:.92}}
+  .lsc{border-radius:14px;overflow:hidden;position:relative;background:var(--s2);aspect-ratio:3/4;box-shadow:0 6px 24px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.04);transition:transform .45s cubic-bezier(.25,.46,.45,.94),box-shadow .45s;}
+  .lsc:hover{transform:translateY(-7px) scale(1.015);box-shadow:0 24px 52px rgba(0,0,0,.65),0 0 0 1px rgba(201,162,74,.2)}
+  .lsc img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;transition:transform .65s cubic-bezier(.25,.46,.45,.94)}
+  .lsc:hover img{transform:scale(1.07)}
+  .iph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px dashed rgba(201,162,74,.18);border-radius:inherit;color:rgba(201,162,74,.45);font-family:'Jost',sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;}
+  .fade-in{animation:fu .44s ease both}
+  @keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes shim{0%,100%{opacity:1}50%{opacity:.45}}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(220,60,60,.3)}50%{box-shadow:0 0 0 12px rgba(220,60,60,0)}}
+  ::-webkit-scrollbar{width:3px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(201,162,74,.18);border-radius:3px}
+  hr.dv{border:none;border-top:1px solid rgba(255,255,255,.042)}
+  .sec{max-width:1020px;margin:0 auto;width:100%;padding:88px 36px}
+  .secs{max-width:700px;margin:0 auto;width:100%;padding:88px 36px}
+  @media(max-width:720px){
+    .sec,.secs{padding:60px 20px}
+    .lsgrid{grid-template-columns:repeat(2,1fr)!important}
+    .fgrid{grid-template-columns:1fr!important}
+    .sgrid{grid-template-columns:1fr!important}
+    .mgrid{grid-template-columns:1fr!important}
+    header{padding:0 16px!important;height:70px!important}
+    .hdr-btns{display:none!important}
+    .hdr-menu{display:flex!important}
   }
-  .type-card { background:var(--s1); border:1px solid var(--sb); border-radius:var(--r); padding:28px 24px; cursor:pointer; transition:all .25s; display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center; }
-  .type-card:hover { border-color:var(--gold-d); transform:translateY(-4px); box-shadow:0 12px 38px rgba(0,0,0,.55),0 0 38px rgba(201,162,74,.1); }
-  .rec-btn { width:72px; height:72px; border-radius:50%; border:2px solid rgba(201,162,74,.4); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; margin:0 auto; }
-  .rec-btn.recording { background:rgba(220,60,60,.15); border-color:rgba(220,60,60,.6); animation:pulse 1.5s ease-in-out infinite; }
-  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,60,60,.3)} 50%{box-shadow:0 0 0 12px rgba(220,60,60,0)} }
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -436,7 +379,7 @@ const TrashIc = ({ sz = 14 }: { sz?: number }) => (
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REUSABLE PRIMITIVES
+// PRIMITIVES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function Pic({
@@ -569,7 +512,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
             textTransform: "uppercase",
           }}
         >
-          <UpIc sz={12} /> Upload logo
+          <UpIc sz={12} /> {BRAND_NAME}
         </div>
       )}
     </div>
@@ -656,7 +599,6 @@ function Badge({ type }: { type: MemType }) {
 const WH = [
   8, 16, 24, 14, 28, 20, 10, 26, 18, 7, 22, 15, 27, 12, 20, 9, 24, 17,
 ];
-
 function Waveform({
   playing,
   progress = 0,
@@ -773,8 +715,6 @@ function Header({
           <Logo compact={showBack} />
         </button>
       </div>
-
-      {/* Desktop buttons */}
       {right && (
         <div
           className="hdr-btns"
@@ -783,8 +723,6 @@ function Header({
           {right}
         </div>
       )}
-
-      {/* Mobile hamburger */}
       <div
         className="hdr-menu"
         style={{ display: "none", position: "relative" }}
@@ -873,7 +811,6 @@ function LsCard({ label, image }: { label: string; image: string }) {
         <div className="iph">
           <ImgIc sz={28} />
           <span>{label}</span>
-          <span style={{ fontSize: 9, opacity: 0.55 }}>Upload image</span>
         </div>
       )}
       {ok && !err && (
@@ -929,154 +866,7 @@ function LsCard({ label, image }: { label: string; image: string }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// VOICE SHOWCASE
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const VOICE_DEMO_SRC =
-  "https://ooyytlibotujvjzkbipy.supabase.co/storage/v1/object/public/demo-assets/voice-note.mp3?v=2";
-
-function VoiceShowcase({ mem }: { mem: MemoryItem }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [hasAudio, setHasAudio] = useState<boolean | null>(null);
-  const toggle = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (playing) {
-      a.pause();
-      setPlaying(false);
-    } else {
-      a.play().catch(() => {});
-      setPlaying(true);
-    }
-  };
-  return (
-    <div className="card" style={{ padding: 28 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: 18,
-        }}
-      >
-        <div>
-          <Badge type="voice" />
-          <h3
-            style={{
-              fontFamily: "'Cormorant Garamond',serif",
-              fontSize: 20,
-              fontWeight: 400,
-              color: "var(--cream)",
-              marginTop: 12,
-              marginBottom: 6,
-              lineHeight: 1.3,
-            }}
-          >
-            {mem.title}
-          </h3>
-          <p style={{ fontSize: 13, color: "var(--c-dim)", lineHeight: 1.6 }}>
-            {mem.caption}
-          </p>
-        </div>
-        <div style={{ marginLeft: 16, flexShrink: 0 }}>
-          <Hrt f sz={14} />
-        </div>
-      </div>
-      <audio
-        ref={audioRef}
-        src={VOICE_DEMO_SRC}
-        preload="metadata"
-        onCanPlay={() => setHasAudio(true)}
-        onError={() => setHasAudio(false)}
-        onTimeUpdate={(e) => {
-          const a = e.currentTarget;
-          if (a.duration) setProgress((a.currentTime / a.duration) * 100);
-        }}
-        onEnded={() => {
-          setPlaying(false);
-          setProgress(0);
-        }}
-        style={{ display: "none" }}
-      />
-      {hasAudio !== false && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            marginBottom: 10,
-          }}
-        >
-          <button
-            onClick={toggle}
-            disabled={hasAudio === null}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: "50%",
-              flexShrink: 0,
-              cursor: hasAudio ? "pointer" : "default",
-              background: playing ? "var(--gold)" : "transparent",
-              border: `1px solid ${playing ? "var(--gold)" : "rgba(201,162,74,.4)"}`,
-              color: playing ? "#100c00" : "var(--gold)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all .2s",
-              opacity: hasAudio === null ? 0.45 : 1,
-            }}
-          >
-            {playing ? <Pause sz={14} /> : <Play sz={14} />}
-          </button>
-          <Waveform playing={playing} progress={progress} />
-          <span
-            style={{
-              fontSize: 11,
-              color: "var(--c-dim)",
-              flexShrink: 0,
-              letterSpacing: ".04em",
-            }}
-          >
-            0:42
-          </span>
-        </div>
-      )}
-      {hasAudio !== false && (
-        <div
-          style={{
-            height: 1.5,
-            background: "rgba(201,162,74,.12)",
-            borderRadius: 2,
-            overflow: "hidden",
-            marginBottom: 14,
-          }}
-        >
-          <div
-            style={{
-              height: "100%",
-              width: `${progress}%`,
-              background: "var(--gold)",
-              transition: "width .12s linear",
-            }}
-          />
-        </div>
-      )}
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 12, color: "var(--c-dim)" }}>
-          From <span style={{ color: "var(--gold)" }}>{mem.sharedBy}</span>
-        </span>
-        <span style={{ fontSize: 11, color: "var(--c-dim)", opacity: 0.45 }}>
-          {mem.date}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MEMORY CARD (dashboard)
+// MEMORY CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function MemCard({
@@ -1085,7 +875,7 @@ function MemCard({
   onClick,
 }: {
   mem: MemoryItem;
-  onLike: (id: string) => void;
+  onLike?: (id: string) => void;
   onClick: (m: MemoryItem) => void;
 }) {
   const [vp, setVp] = useState(false);
@@ -1124,15 +914,17 @@ function MemCard({
           }}
         >
           <Badge type={mem.type} />
-          <button
-            className={`hbtn${mem.liked ? " liked" : ""}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onLike(mem.id);
-            }}
-          >
-            <Hrt f={mem.liked} sz={13} />
-          </button>
+          {onLike && (
+            <button
+              className={`hbtn${mem.liked ? " liked" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onLike(mem.id);
+              }}
+            >
+              <Hrt f={mem.liked} sz={13} />
+            </button>
+          )}
         </div>
         {mem.type === "voice" && (
           <div
@@ -1275,20 +1067,1007 @@ function MemCard({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// GUEST NAME PROMPT — shown once, saved to localStorage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function GuestNameView({ onDone }: { onDone: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const save = () => {
+    if (!name.trim()) return;
+    localStorage.setItem("evernear_guest_name", name.trim());
+    onDone(name.trim());
+  };
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 24px",
+        background: "var(--black)",
+      }}
+    >
+      <div
+        className="card fade-in"
+        style={{
+          width: "100%",
+          maxWidth: 400,
+          padding: "48px 42px",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: 40, marginBottom: 20 }}>🤍</div>
+        <Rule />
+        <h2
+          style={{
+            fontFamily: "'Cormorant Garamond',serif",
+            fontSize: 30,
+            fontWeight: 400,
+            color: "var(--cream)",
+            marginBottom: 12,
+          }}
+        >
+          Welcome to this space
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--c-dim)",
+            lineHeight: 1.72,
+            marginBottom: 32,
+          }}
+        >
+          Before you step inside — what would you like to be called?
+        </p>
+        <input
+          placeholder="Your name or nickname"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          style={{ marginBottom: 16, textAlign: "center", fontSize: 17 }}
+          autoFocus
+        />
+        <button
+          className="btn-gold"
+          style={{ width: "100%", opacity: name.trim() ? 1 : 0.4 }}
+          onClick={save}
+        >
+          Step Inside
+        </button>
+        <p
+          style={{
+            fontSize: 11,
+            color: "var(--c-dim)",
+            marginTop: 20,
+            opacity: 0.4,
+            lineHeight: 1.6,
+          }}
+        >
+          We'll remember your name on this device.
+          <br />
+          No account needed.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GUEST SPACE VIEW — public view of a shared space
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function GuestSpaceView({
+  space,
+  memories,
+  guestName,
+  onAddMemory,
+  onSel,
+}: {
+  space: { id: string; name: string };
+  memories: MemoryItem[];
+  guestName: string;
+  onAddMemory: () => void;
+  onSel: (m: MemoryItem) => void;
+}) {
+  const [tab, setTab] = useState<"all" | MemType>("all");
+  const tabs: [string, string][] = [
+    ["all", "All"],
+    ["photo", "Photos"],
+    ["note", "Notes"],
+    ["voice", "Voice"],
+    ["meme", "Memes"],
+    ["music", "Music"],
+  ];
+  const filtered =
+    tab === "all" ? memories : memories.filter((m) => m.type === tab);
+
+  return (
+    <div
+      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
+    >
+      {/* Minimal header for guest */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "rgba(11,10,9,.97)",
+          backdropFilter: "blur(24px)",
+          borderBottom: "1px solid rgba(255,255,255,.042)",
+          padding: "0 24px",
+          height: 70,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Logo compact />
+        <button
+          className="btn-gold"
+          style={{ padding: "10px 20px", fontSize: 11 }}
+          onClick={onAddMemory}
+        >
+          + Add Memory
+        </button>
+      </header>
+
+      <div
+        style={{
+          maxWidth: 960,
+          margin: "0 auto",
+          width: "100%",
+          padding: "0 24px",
+        }}
+      >
+        <div style={{ padding: "40px 0 24px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div
+              style={{
+                width: 18,
+                height: 1,
+                background: "var(--gold)",
+                opacity: 0.44,
+              }}
+            />
+            <span
+              style={{
+                fontSize: 11,
+                letterSpacing: ".16em",
+                textTransform: "uppercase",
+                color: "var(--gold)",
+                fontFamily: "'Jost',sans-serif",
+              }}
+            >
+              Shared Space
+            </span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <div>
+              <h1
+                style={{
+                  fontFamily: "'Cormorant Garamond',serif",
+                  fontSize: "clamp(32px,5vw,52px)",
+                  fontWeight: 300,
+                  color: "var(--cream)",
+                  letterSpacing: "-.015em",
+                  lineHeight: 1.1,
+                }}
+              >
+                {space.name}
+              </h1>
+              <p style={{ fontSize: 13, color: "var(--c-dim)", marginTop: 8 }}>
+                Welcome,{" "}
+                <span style={{ color: "var(--gold)" }}>{guestName}</span>. These
+                moments were saved for you.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid rgba(255,255,255,.042)",
+            overflowX: "auto",
+            scrollbarWidth: "none",
+            marginBottom: 32,
+          }}
+        >
+          {tabs.map(([k, l]) => (
+            <button
+              key={k}
+              className={`tab-btn${tab === k ? " active" : ""}`}
+              onClick={() => setTab(k as "all" | MemType)}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "80px 24px" }}>
+            <div style={{ fontSize: 40, marginBottom: 20 }}>🤍</div>
+            <p
+              style={{
+                fontFamily: "'Cormorant Garamond',serif",
+                fontSize: 24,
+                color: "var(--cream)",
+                marginBottom: 10,
+              }}
+            >
+              Nothing here yet.
+            </p>
+            <p
+              style={{ fontSize: 13, color: "var(--c-dim)", marginBottom: 28 }}
+            >
+              Be the first to add a memory to this space.
+            </p>
+            <button className="btn-gold" onClick={onAddMemory}>
+              + Add First Memory
+            </button>
+          </div>
+        ) : (
+          <div
+            className="mgrid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(272px,1fr))",
+              gap: 18,
+              paddingBottom: 64,
+            }}
+          >
+            {filtered.map((m) => (
+              <MemCard key={m.id} mem={m} onClick={onSel} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOICE RECORDER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function VoiceRecorder({
+  onAudio,
+}: {
+  onAudio: (blob: Blob | null, url: string | null) => void;
+}) {
+  const [state, setState] = useState<"idle" | "recording" | "recorded">("idle");
+  const [seconds, setSeconds] = useState(0);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timerRef = useRef<number | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => chunksRef.current.push(e.data);
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+        onAudio(blob, url);
+        setState("recorded");
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mr.start();
+      mediaRef.current = mr;
+      setState("recording");
+      setSeconds(0);
+      timerRef.current = window.setInterval(
+        () => setSeconds((s) => s + 1),
+        1000,
+      );
+    } catch {
+      alert(
+        "Microphone access denied. Please allow microphone access and try again.",
+      );
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRef.current?.stop();
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+  const discard = () => {
+    setBlobUrl(null);
+    setPlaying(false);
+    setProgress(0);
+    setSeconds(0);
+    setState("idle");
+    onAudio(null, null);
+  };
+  const togglePlay = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing) {
+      a.pause();
+      setPlaying(false);
+    } else {
+      a.play();
+      setPlaying(true);
+    }
+  };
+  const fmt = (s: number) =>
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {state === "idle" && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 16,
+            padding: "28px 0",
+          }}
+        >
+          <button
+            onClick={startRecording}
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              border: "2px solid rgba(201,162,74,.4)",
+              background: "transparent",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "all .2s",
+            }}
+          >
+            <MicIc sz={28} />
+          </button>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--c-dim)",
+              letterSpacing: ".04em",
+            }}
+          >
+            Tap to start recording
+          </p>
+        </div>
+      )}
+      {state === "recording" && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 16,
+            padding: "28px 0",
+          }}
+        >
+          <button
+            onClick={stopRecording}
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              border: "2px solid rgba(220,60,60,.6)",
+              background: "rgba(220,60,60,.15)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              animation: "pulse 1.5s ease-in-out infinite",
+            }}
+          >
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                background: "rgba(220,80,80,.9)",
+                borderRadius: 4,
+              }}
+            />
+          </button>
+          <p
+            style={{
+              fontSize: 13,
+              color: "rgba(220,100,100,.9)",
+              letterSpacing: ".04em",
+            }}
+          >
+            Recording — {fmt(seconds)} — tap to stop
+          </p>
+          <Waveform playing={true} />
+        </div>
+      )}
+      {state === "recorded" && blobUrl && (
+        <div
+          style={{
+            background: "rgba(201,162,74,.05)",
+            border: "1px solid rgba(201,162,74,.18)",
+            borderRadius: 10,
+            padding: "18px 20px",
+          }}
+        >
+          <audio
+            ref={audioRef}
+            src={blobUrl}
+            onTimeUpdate={(e) => {
+              const a = e.currentTarget;
+              if (a.duration) setProgress((a.currentTime / a.duration) * 100);
+            }}
+            onEnded={() => {
+              setPlaying(false);
+              setProgress(0);
+            }}
+          />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              marginBottom: 10,
+            }}
+          >
+            <button
+              onClick={togglePlay}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                flexShrink: 0,
+                cursor: "pointer",
+                background: playing ? "var(--gold)" : "transparent",
+                border: `1px solid ${playing ? "var(--gold)" : "rgba(201,162,74,.4)"}`,
+                color: playing ? "#100c00" : "var(--gold)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all .2s",
+              }}
+            >
+              {playing ? <Pause sz={12} /> : <Play sz={12} />}
+            </button>
+            <Waveform playing={playing} progress={progress} />
+            <span
+              style={{ fontSize: 11, color: "var(--c-dim)", flexShrink: 0 }}
+            >
+              {fmt(seconds)}
+            </span>
+          </div>
+          <div
+            style={{
+              height: 1.5,
+              background: "rgba(201,162,74,.12)",
+              borderRadius: 2,
+              overflow: "hidden",
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${progress}%`,
+                background: "var(--gold)",
+                transition: "width .12s linear",
+              }}
+            />
+          </div>
+          <button
+            onClick={discard}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(220,100,100,.7)",
+              fontFamily: "'Jost',sans-serif",
+              fontSize: 12,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              letterSpacing: ".04em",
+            }}
+          >
+            <TrashIc sz={13} /> Discard and re-record
+          </button>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{ flex: 1, height: 1, background: "rgba(255,255,255,.06)" }}
+        />
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--c-dim)",
+            letterSpacing: ".08em",
+          }}
+        >
+          or upload a file
+        </span>
+        <div
+          style={{ flex: 1, height: 1, background: "rgba(255,255,255,.06)" }}
+        />
+      </div>
+      <label
+        style={{
+          border: "1px dashed rgba(201,162,74,.2)",
+          borderRadius: 9,
+          padding: "16px",
+          textAlign: "center",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          color: "var(--c-dim)",
+          background: "rgba(201,162,74,.02)",
+        }}
+      >
+        <UpIc sz={15} />
+        <span style={{ fontSize: 13 }}>Upload audio file</span>
+        <span style={{ fontSize: 11, opacity: 0.45 }}>MP3, M4A, WAV</span>
+        <input
+          type="file"
+          accept="audio/*"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            setBlobUrl(url);
+            onAudio(file, url);
+            setState("recorded");
+            setSeconds(0);
+          }}
+        />
+      </label>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADD MEMORY FORM — used by both owner and guest
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AddMemoryForm({
+  memType,
+  sharedBy,
+  onBack,
+  onSave,
+}: {
+  memType: MemType;
+  sharedBy: string;
+  onBack: () => void;
+  onSave: (m: Omit<MemoryItem, "id" | "date" | "liked">) => Promise<void>;
+}) {
+  const [title, setTitle] = useState("");
+  const [caption, setCaption] = useState("");
+  const [musicUrl, setMusicUrl] = useState("");
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const canSave = () => {
+    if (!title.trim()) return false;
+    if (memType === "photo" || memType === "meme") return !!photoPreview;
+    if (memType === "music") return !!musicUrl.trim();
+    if (memType === "voice") return !!audioUrl;
+    return true;
+  };
+
+  const save = async () => {
+    if (!canSave()) return;
+    setBusy(true);
+    await onSave({
+      type: memType,
+      title: title.trim(),
+      caption: caption.trim(),
+      image: photoPreview ?? undefined,
+      url:
+        memType === "music"
+          ? musicUrl
+          : memType === "voice"
+            ? (audioUrl ?? undefined)
+            : undefined,
+      sharedBy,
+    });
+    setSaved(true);
+    setBusy(false);
+  };
+
+  return (
+    <div
+      style={{
+        maxWidth: 560,
+        margin: "0 auto",
+        width: "100%",
+        padding: "48px 28px",
+      }}
+    >
+      <button
+        onClick={onBack}
+        style={{
+          background: "none",
+          border: "none",
+          color: "var(--c-dim)",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          fontFamily: "'Jost',sans-serif",
+          fontSize: 13,
+          marginBottom: 28,
+        }}
+      >
+        <ChevL /> Back
+      </button>
+      <Rule />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 34,
+        }}
+      >
+        <span style={{ fontSize: 24 }}>{T[memType].icon}</span>
+        <h2
+          style={{
+            fontFamily: "'Cormorant Garamond',serif",
+            fontSize: 30,
+            fontWeight: 400,
+            color: "var(--cream)",
+          }}
+        >
+          Add a {T[memType].label.toLowerCase()}
+        </h2>
+      </div>
+      <div className="card fade-in" style={{ padding: "36px 32px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+          {(memType === "photo" || memType === "meme") && (
+            <div>
+              <Lbl t={memType === "photo" ? "Photo" : "Meme Image"} />
+              {photoPreview ? (
+                <div
+                  style={{
+                    position: "relative",
+                    borderRadius: 9,
+                    overflow: "hidden",
+                  }}
+                >
+                  <img
+                    src={photoPreview}
+                    alt="preview"
+                    style={{
+                      width: "100%",
+                      maxHeight: 240,
+                      objectFit: "cover",
+                      display: "block",
+                      borderRadius: 9,
+                    }}
+                  />
+                  <button
+                    onClick={() => setPhotoPreview(null)}
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      right: 10,
+                      background: "rgba(0,0,0,.6)",
+                      border: "none",
+                      borderRadius: 6,
+                      color: "var(--cream)",
+                      fontFamily: "'Jost',sans-serif",
+                      fontSize: 11,
+                      padding: "5px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <label
+                  style={{
+                    border: "1px dashed rgba(201,162,74,.22)",
+                    borderRadius: 9,
+                    padding: "36px 16px",
+                    textAlign: "center",
+                    color: "var(--c-dim)",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "rgba(201,162,74,.02)",
+                  }}
+                >
+                  <UpIc sz={22} />
+                  <span style={{ fontSize: 14 }}>Tap to upload</span>
+                  <span style={{ fontSize: 11, opacity: 0.45 }}>
+                    JPG, PNG, GIF
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) setPhotoPreview(URL.createObjectURL(f));
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          )}
+          {memType === "voice" && (
+            <div>
+              <Lbl t="Voice Message" />
+              <VoiceRecorder onAudio={(_, url) => setAudioUrl(url)} />
+            </div>
+          )}
+          {memType === "music" && (
+            <div>
+              <Lbl t="Music or Video Link" />
+              <div style={{ position: "relative" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 14,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#a898c8",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <MusicIc sz={15} />
+                </div>
+                <input
+                  type="url"
+                  placeholder="Paste a Spotify, YouTube, Apple Music link…"
+                  value={musicUrl}
+                  onChange={(e) => setMusicUrl(e.target.value)}
+                  style={{ paddingLeft: 40 }}
+                />
+              </div>
+              {musicUrl && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    background: "rgba(148,130,185,.08)",
+                    border: "1px solid rgba(148,130,185,.22)",
+                    borderRadius: 9,
+                    padding: "12px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <MusicIc sz={14} />
+                  <span
+                    style={{
+                      fontSize: 13,
+                      color: "#a898c8",
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {musicUrl.replace("https://", "")}
+                  </span>
+                  <a
+                    href={musicUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#a898c8", opacity: 0.6 }}
+                  >
+                    <ExtLink sz={12} />
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+          <div>
+            <Lbl t="Title" />
+            <input
+              placeholder={
+                memType === "note"
+                  ? "Give this note a title"
+                  : "Give this memory a name"
+              }
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          {memType !== "voice" && (
+            <div>
+              <Lbl t={memType === "note" ? "Your note" : "Caption"} />
+              <textarea
+                placeholder={
+                  memType === "note"
+                    ? "Write what's on your heart…"
+                    : "What do you want to remember?"
+                }
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                rows={memType === "note" ? 5 : 3}
+                style={{ resize: "vertical" }}
+              />
+            </div>
+          )}
+          <button
+            className="btn-gold"
+            style={{
+              width: "100%",
+              marginTop: 6,
+              opacity: canSave() && !busy ? 1 : 0.38,
+            }}
+            onClick={save}
+            disabled={busy || !canSave()}
+          >
+            {saved
+              ? "Saved ✓"
+              : busy
+                ? "Saving…"
+                : `Save ${T[memType].label} Memory`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PICK TYPE VIEW
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function PickTypeView({
+  onNav,
+  onPick,
+}: {
+  onNav: (v: View) => void;
+  onPick: (t: MemType) => void;
+}) {
+  const types: { type: MemType; desc: string }[] = [
+    { type: "photo", desc: "A moment captured in a photo" },
+    { type: "note", desc: "Words from the heart" },
+    { type: "voice", desc: "Record or upload a voice message" },
+    { type: "music", desc: "A song that means something" },
+    { type: "meme", desc: "Something that made you both laugh" },
+  ];
+  return (
+    <div
+      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
+    >
+      <Header showBack onBack={() => onNav("dashboard")} onNav={onNav} />
+      <div
+        style={{
+          maxWidth: 600,
+          margin: "0 auto",
+          width: "100%",
+          padding: "48px 28px",
+        }}
+      >
+        <Rule />
+        <h2
+          style={{
+            fontFamily: "'Cormorant Garamond',serif",
+            fontSize: 34,
+            fontWeight: 400,
+            marginBottom: 10,
+            color: "var(--cream)",
+          }}
+        >
+          What kind of memory?
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--c-dim)",
+            marginBottom: 36,
+            lineHeight: 1.65,
+          }}
+        >
+          Choose a type and we'll take you right there.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {types.map(({ type, desc }) => {
+            const s = T[type];
+            return (
+              <button
+                key={type}
+                onClick={() => {
+                  onPick(type);
+                  onNav("add-memory");
+                }}
+                style={{
+                  background: "var(--s1)",
+                  border: "1px solid var(--sb)",
+                  borderRadius: "var(--r)",
+                  padding: "22px 28px",
+                  cursor: "pointer",
+                  transition: "all .25s",
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 20,
+                  textAlign: "left",
+                  width: "100%",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = s.border;
+                  e.currentTarget.style.background = s.bg;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "var(--sb)";
+                  e.currentTarget.style.background = "var(--s1)";
+                }}
+              >
+                <span style={{ fontSize: 28, flexShrink: 0 }}>{s.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontFamily: "'Jost',sans-serif",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      letterSpacing: ".12em",
+                      textTransform: "uppercase",
+                      color: s.color,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {s.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "var(--c-dim)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {desc}
+                  </div>
+                </div>
+                <ChevL />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // LANDING VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function LandingView({ onNav }: { onNav: (v: View) => void }) {
-  const [showcaseFilter, setShowcaseFilter] = useState<MemType | null>(null);
-  const voice = SAMPLE_MEMORIES.find((m) => m.type === "voice")!;
-  const note = SAMPLE_MEMORIES.find((m) => m.type === "note")!;
-  const photo = SAMPLE_MEMORIES.find((m) => m.type === "photo")!;
-  const music = SAMPLE_MEMORIES.find((m) => m.type === "music")!;
-  const meme = SAMPLE_MEMORIES.find((m) => m.type === "meme")!;
-  const showcaseItems: MemType[] = showcaseFilter
-    ? [showcaseFilter]
-    : ["voice", "note", "photo", "music", "meme"];
-
   return (
     <div
       style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
@@ -1314,8 +2093,6 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
           </>
         }
       />
-
-      {/* HERO */}
       <section
         style={{
           display: "flex",
@@ -1400,7 +2177,7 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
               fontSize: "clamp(15px,1.8vw,18px)",
               color: "var(--c-mid)",
               lineHeight: 1.82,
-              maxWidth: 480,
+              maxWidth: 520,
               margin: "0 auto 52px",
               fontWeight: 300,
             }}
@@ -1431,58 +2208,8 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
             </button>
           </div>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            marginTop: 62,
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}
-        >
-          {(Object.keys(T) as MemType[]).map((t) => {
-            const s = T[t];
-            const active = showcaseFilter === t;
-            return (
-              <button
-                key={t}
-                onClick={() => {
-                  setShowcaseFilter(active ? null : t);
-                  setTimeout(() => {
-                    const el = document.getElementById("memory-showcase");
-                    if (el)
-                      el.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }, 50);
-                }}
-                style={{
-                  background: active ? s.border : s.bg,
-                  border: `1px solid ${s.border}`,
-                  boxShadow: active
-                    ? `${s.glow}, 0 0 0 1px ${s.border}`
-                    : s.glow,
-                  borderRadius: 20,
-                  fontSize: 11,
-                  color: active ? "var(--black)" : s.color,
-                  padding: "7px 20px",
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase" as const,
-                  fontFamily: "'Jost',sans-serif",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  transition: "all .2s",
-                  transform: active ? "translateY(-1px)" : "none",
-                }}
-              >
-                {s.label}s
-              </button>
-            );
-          })}
-        </div>
       </section>
-
       <hr className="dv" />
-
-      {/* LIFESTYLE PHOTOS */}
       <section className="sec">
         <div style={{ textAlign: "center", marginBottom: 52 }}>
           <Eyebrow text="For the ones who matter" />
@@ -1545,10 +2272,7 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
           </div>
         </div>
       </section>
-
       <hr className="dv" />
-
-      {/* FEATURES */}
       <section className="sec">
         <div style={{ textAlign: "center", marginBottom: 52 }}>
           <Eyebrow text="How it works" />
@@ -1606,329 +2330,7 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
           ))}
         </div>
       </section>
-
       <hr className="dv" />
-
-      {/* MEMORY SHOWCASE */}
-      <section className="sec" id="memory-showcase">
-        <div style={{ textAlign: "center", marginBottom: 52 }}>
-          <Eyebrow text="What you can keep" />
-          <h2
-            style={{
-              fontFamily: "'Cormorant Garamond',serif",
-              fontSize: "clamp(28px,3.5vw,44px)",
-              fontWeight: 300,
-              color: "var(--cream)",
-              lineHeight: 1.2,
-            }}
-          >
-            {showcaseFilter ? (
-              <>
-                <span style={{ color: "var(--gold)" }}>
-                  {T[showcaseFilter].label}s
-                </span>{" "}
-                — in your private space.
-              </>
-            ) : (
-              <>
-                Every kind of memory,
-                <br />
-                in one private place.
-              </>
-            )}
-          </h2>
-        </div>
-        <div
-          style={{
-            maxWidth: 820,
-            margin: "0 auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: 20,
-          }}
-        >
-          {showcaseItems.includes("voice") && <VoiceShowcase mem={voice} />}
-          {(showcaseItems.includes("note") ||
-            showcaseItems.includes("photo")) && (
-            <div
-              className="sgrid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: showcaseFilter ? "1fr" : "1fr 1fr",
-                gap: 20,
-              }}
-            >
-              {showcaseItems.includes("note") && (
-                <div className="card" style={{ padding: "28px 30px" }}>
-                  <Badge type="note" />
-                  <blockquote
-                    style={{
-                      fontFamily: "'Cormorant Garamond',serif",
-                      fontSize: 19,
-                      fontWeight: 300,
-                      fontStyle: "italic",
-                      color: "rgba(236,230,221,.88)",
-                      lineHeight: 1.78,
-                      marginTop: 18,
-                      marginBottom: 20,
-                    }}
-                  >
-                    "{note.caption.replace(/ — \w+$/, "")}"
-                  </blockquote>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      paddingTop: 14,
-                      borderTop: "1px solid rgba(255,255,255,.05)",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontFamily: "'Cormorant Garamond',serif",
-                        fontStyle: "italic",
-                        color: "var(--gold)",
-                      }}
-                    >
-                      — {note.sharedBy}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: "var(--c-dim)",
-                        opacity: 0.42,
-                      }}
-                    >
-                      {note.date}
-                    </span>
-                  </div>
-                </div>
-              )}
-              {showcaseItems.includes("photo") && (
-                <div className="card" style={{ overflow: "hidden" }}>
-                  <Pic src={photo.image} alt={photo.title} h={160} r={0} />
-                  <div style={{ padding: "18px 20px" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <Badge type="photo" />
-                      <Hrt f sz={13} />
-                    </div>
-                    <h3
-                      style={{
-                        fontFamily: "'Cormorant Garamond',serif",
-                        fontSize: 17,
-                        fontWeight: 400,
-                        color: "var(--cream)",
-                        marginBottom: 5,
-                      }}
-                    >
-                      {photo.title}
-                    </h3>
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "var(--c-dim)",
-                        lineHeight: 1.6,
-                        marginBottom: 10,
-                      }}
-                    >
-                      {photo.caption}
-                    </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span style={{ fontSize: 12, color: "var(--gold)" }}>
-                        {photo.sharedBy}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "var(--c-dim)",
-                          opacity: 0.42,
-                        }}
-                      >
-                        {photo.date}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {(showcaseItems.includes("music") ||
-            showcaseItems.includes("meme")) && (
-            <div
-              className="sgrid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: showcaseFilter ? "1fr" : "1fr 1fr",
-                gap: 20,
-              }}
-            >
-              {showcaseItems.includes("music") && (
-                <div className="card" style={{ padding: 22 }}>
-                  <Badge type="music" />
-                  <h3
-                    style={{
-                      fontFamily: "'Cormorant Garamond',serif",
-                      fontSize: 18,
-                      fontWeight: 400,
-                      color: "var(--cream)",
-                      marginTop: 14,
-                      marginBottom: 12,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {music.title}
-                  </h3>
-                  <a
-                    href={music.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      background: "rgba(148,130,185,.07)",
-                      border: "1px solid rgba(148,130,185,.22)",
-                      borderRadius: 8,
-                      padding: "10px 14px",
-                      textDecoration: "none",
-                      color: "#a898c8",
-                      fontSize: 13,
-                      marginBottom: 12,
-                    }}
-                  >
-                    <MusicIc sz={13} />
-                    <span
-                      style={{
-                        flex: 1,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {music.url?.replace("https://", "")}
-                    </span>
-                    <ExtLink sz={12} />
-                  </a>
-                  <p
-                    style={{
-                      fontSize: 13,
-                      color: "var(--c-dim)",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {music.caption}
-                  </p>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginTop: 14,
-                      paddingTop: 12,
-                      borderTop: "1px solid rgba(255,255,255,.042)",
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: "var(--gold)" }}>
-                      {music.sharedBy}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: "var(--c-dim)",
-                        opacity: 0.42,
-                      }}
-                    >
-                      {music.date}
-                    </span>
-                  </div>
-                </div>
-              )}
-              {showcaseItems.includes("meme") && (
-                <div className="card" style={{ overflow: "hidden" }}>
-                  <Pic
-                    src={SAMPLE_MEMORIES.find((m) => m.type === "meme")!.image}
-                    alt="meme"
-                    h={130}
-                    r={0}
-                  />
-                  <div style={{ padding: "16px 20px" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <Badge type="meme" />
-                      <Hrt sz={13} />
-                    </div>
-                    <h3
-                      style={{
-                        fontFamily: "'Cormorant Garamond',serif",
-                        fontSize: 17,
-                        fontWeight: 400,
-                        color: "var(--cream)",
-                        marginBottom: 5,
-                      }}
-                    >
-                      {SAMPLE_MEMORIES.find((m) => m.type === "meme")!.title}
-                    </h3>
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "var(--c-dim)",
-                        lineHeight: 1.6,
-                        marginBottom: 10,
-                      }}
-                    >
-                      {SAMPLE_MEMORIES.find((m) => m.type === "meme")!.caption}
-                    </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span style={{ fontSize: 12, color: "var(--gold)" }}>
-                        {
-                          SAMPLE_MEMORIES.find((m) => m.type === "meme")!
-                            .sharedBy
-                        }
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "var(--c-dim)",
-                          opacity: 0.42,
-                        }}
-                      >
-                        {SAMPLE_MEMORIES.find((m) => m.type === "meme")!.date}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <hr className="dv" />
-
-      {/* FINAL CTA */}
       <section className="secs" style={{ textAlign: "center" }}>
         <div
           style={{
@@ -1979,7 +2381,6 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
           {COPY.cta}
         </button>
       </section>
-
       <footer
         style={{
           borderTop: "1px solid rgba(255,255,255,.042)",
@@ -2009,7 +2410,7 @@ function LandingView({ onNav }: { onNav: (v: View) => void }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH
-// ══════════════════════════════════ic�════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function AuthView({
   onNav,
@@ -2442,1535 +2843,4 @@ function DashboardView({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PICK TYPE VIEW — the new type-picker screen
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function PickTypeView({
-  onNav,
-  onPick,
-}: {
-  onNav: (v: View) => void;
-  onPick: (t: MemType) => void;
-}) {
-  const types: { type: MemType; desc: string }[] = [
-    { type: "photo", desc: "A moment captured in a photo" },
-    { type: "note", desc: "Words from the heart" },
-    { type: "voice", desc: "Record or upload a voice message" },
-    { type: "music", desc: "A song that means something" },
-    { type: "meme", desc: "Something that made you both laugh" },
-  ];
-  return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      <Header showBack onBack={() => onNav("dashboard")} onNav={onNav} />
-      <div
-        style={{
-          maxWidth: 600,
-          margin: "0 auto",
-          width: "100%",
-          padding: "48px 28px",
-        }}
-      >
-        <Rule />
-        <h2
-          style={{
-            fontFamily: "'Cormorant Garamond',serif",
-            fontSize: 34,
-            fontWeight: 400,
-            marginBottom: 10,
-            color: "var(--cream)",
-          }}
-        >
-          What kind of memory?
-        </h2>
-        <p
-          style={{
-            fontSize: 14,
-            color: "var(--c-dim)",
-            marginBottom: 36,
-            lineHeight: 1.65,
-          }}
-        >
-          Choose a type and we'll take you right there.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {types.map(({ type, desc }) => {
-            const s = T[type];
-            return (
-              <button
-                key={type}
-                className="type-card"
-                onClick={() => {
-                  onPick(type);
-                  onNav("add-memory");
-                }}
-                style={{
-                  background: "var(--s1)",
-                  border: `1px solid var(--sb)`,
-                  borderRadius: "var(--r)",
-                  padding: "22px 28px",
-                  cursor: "pointer",
-                  transition: "all .25s",
-                  display: "flex",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 20,
-                  textAlign: "left",
-                  width: "100%",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = s.border;
-                  e.currentTarget.style.background = s.bg;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--sb)";
-                  e.currentTarget.style.background = "var(--s1)";
-                }}
-              >
-                <span style={{ fontSize: 28, flexShrink: 0 }}>{s.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      fontFamily: "'Jost',sans-serif",
-                      fontSize: 13,
-                      fontWeight: 500,
-                      letterSpacing: ".12em",
-                      textTransform: "uppercase",
-                      color: s.color,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {s.label}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: "var(--c-dim)",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {desc}
-                  </div>
-                </div>
-                <ChevL />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// VOICE RECORDER — record, playback, re-record or upload
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function VoiceRecorder({
-  onAudio,
-}: {
-  onAudio: (blob: Blob | null, url: string | null) => void;
-}) {
-  const [state, setState] = useState<"idle" | "recording" | "recorded">("idle");
-  const [seconds, setSeconds] = useState(0);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const mediaRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const timerRef = useRef<number | null>(null);
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => chunksRef.current.push(e.data);
-      mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        setBlobUrl(url);
-        onAudio(blob, url);
-        setState("recorded");
-        stream.getTracks().forEach((t) => t.stop());
-      };
-      mr.start();
-      mediaRef.current = mr;
-      setState("recording");
-      setSeconds(0);
-      timerRef.current = window.setInterval(
-        () => setSeconds((s) => s + 1),
-        1000,
-      );
-    } catch {
-      alert(
-        "Microphone access denied. Please allow microphone access and try again.",
-      );
-    }
-  };
-
-  const stopRecording = () => {
-    mediaRef.current?.stop();
-    if (timerRef.current) clearInterval(timerRef.current);
-  };
-
-  const discard = () => {
-    setBlobUrl(null);
-    setPlaying(false);
-    setProgress(0);
-    setSeconds(0);
-    setState("idle");
-    onAudio(null, null);
-  };
-
-  const togglePlay = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (playing) {
-      a.pause();
-      setPlaying(false);
-    } else {
-      a.play();
-      setPlaying(true);
-    }
-  };
-
-  const fmt = (s: number) =>
-    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {state === "idle" && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 16,
-            padding: "28px 0",
-          }}
-        >
-          <button
-            className="rec-btn"
-            onClick={startRecording}
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: "50%",
-              border: "2px solid rgba(201,162,74,.4)",
-              background: "transparent",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all .2s",
-            }}
-          >
-            <MicIc sz={28} />
-          </button>
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--c-dim)",
-              letterSpacing: ".04em",
-            }}
-          >
-            Tap to start recording
-          </p>
-        </div>
-      )}
-      {state === "recording" && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 16,
-            padding: "28px 0",
-          }}
-        >
-          <button
-            className="rec-btn recording"
-            onClick={stopRecording}
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: "50%",
-              border: "2px solid rgba(220,60,60,.6)",
-              background: "rgba(220,60,60,.15)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              animation: "pulse 1.5s ease-in-out infinite",
-            }}
-          >
-            <div
-              style={{
-                width: 20,
-                height: 20,
-                background: "rgba(220,80,80,.9)",
-                borderRadius: 4,
-              }}
-            />
-          </button>
-          <p
-            style={{
-              fontSize: 13,
-              color: "rgba(220,100,100,.9)",
-              letterSpacing: ".04em",
-            }}
-          >
-            Recording — {fmt(seconds)} — tap to stop
-          </p>
-          <Waveform playing={true} />
-        </div>
-      )}
-      {state === "recorded" && blobUrl && (
-        <div
-          style={{
-            background: "rgba(201,162,74,.05)",
-            border: "1px solid rgba(201,162,74,.18)",
-            borderRadius: 10,
-            padding: "18px 20px",
-          }}
-        >
-          <audio
-            ref={audioRef}
-            src={blobUrl}
-            onTimeUpdate={(e) => {
-              const a = e.currentTarget;
-              if (a.duration) setProgress((a.currentTime / a.duration) * 100);
-            }}
-            onEnded={() => {
-              setPlaying(false);
-              setProgress(0);
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              marginBottom: 10,
-            }}
-          >
-            <button
-              onClick={togglePlay}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                flexShrink: 0,
-                cursor: "pointer",
-                background: playing ? "var(--gold)" : "transparent",
-                border: `1px solid ${playing ? "var(--gold)" : "rgba(201,162,74,.4)"}`,
-                color: playing ? "#100c00" : "var(--gold)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all .2s",
-              }}
-            >
-              {playing ? <Pause sz={12} /> : <Play sz={12} />}
-            </button>
-            <Waveform playing={playing} progress={progress} />
-            <span
-              style={{ fontSize: 11, color: "var(--c-dim)", flexShrink: 0 }}
-            >
-              {fmt(seconds)}
-            </span>
-          </div>
-          <div
-            style={{
-              height: 1.5,
-              background: "rgba(201,162,74,.12)",
-              borderRadius: 2,
-              overflow: "hidden",
-              marginBottom: 12,
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${progress}%`,
-                background: "var(--gold)",
-                transition: "width .12s linear",
-              }}
-            />
-          </div>
-          <button
-            onClick={discard}
-            style={{
-              background: "none",
-              border: "none",
-              color: "rgba(220,100,100,.7)",
-              fontFamily: "'Jost',sans-serif",
-              fontSize: 12,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              letterSpacing: ".04em",
-            }}
-          >
-            <TrashIc sz={13} /> Discard and re-record
-          </button>
-        </div>
-      )}
-
-      {/* Upload fallback */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div
-          style={{ flex: 1, height: 1, background: "rgba(255,255,255,.06)" }}
-        />
-        <span
-          style={{
-            fontSize: 11,
-            color: "var(--c-dim)",
-            letterSpacing: ".08em",
-          }}
-        >
-          or upload a file
-        </span>
-        <div
-          style={{ flex: 1, height: 1, background: "rgba(255,255,255,.06)" }}
-        />
-      </div>
-      <label
-        style={{
-          border: "1px dashed rgba(201,162,74,.2)",
-          borderRadius: 9,
-          padding: "16px",
-          textAlign: "center",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 10,
-          color: "var(--c-dim)",
-          background: "rgba(201,162,74,.02)",
-        }}
-      >
-        <UpIc sz={15} />
-        <span style={{ fontSize: 13 }}>Upload audio file</span>
-        <span style={{ fontSize: 11, opacity: 0.45 }}>MP3, M4A, WAV</span>
-        <input
-          type="file"
-          accept="audio/*"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            const url = URL.createObjectURL(file);
-            setBlobUrl(url);
-            onAudio(file, url);
-            setState("recorded");
-            setSeconds(0);
-          }}
-        />
-      </label>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ADD MEMORY — type-specific forms, no dropdown
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function AddMemoryView({
-  onNav,
-  onSave,
-  memType,
-}: {
-  onNav: (v: View) => void;
-  onSave: (m: MemoryItem) => void;
-  memType: MemType;
-}) {
-  const [title, setTitle] = useState("");
-  const [caption, setCaption] = useState("");
-  const [by, setBy] = useState("");
-  const [musicUrl, setMusicUrl] = useState("");
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const typeLabel = T[memType].label;
-
-  const canSave = () => {
-    if (!title.trim() || !by.trim()) return false;
-    if (memType === "photo" || memType === "meme") return !!photoPreview;
-    if (memType === "music") return !!musicUrl.trim();
-    if (memType === "voice") return !!audioUrl;
-    return true;
-  };
-
-  const save = async () => {
-    if (!canSave()) return;
-    setBusy(true);
-    const item: MemoryItem = {
-      id: Date.now().toString(),
-      type: memType,
-      title: title.trim(),
-      caption: caption.trim(),
-      image: photoPreview ?? undefined,
-      url:
-        memType === "music"
-          ? musicUrl
-          : memType === "voice"
-            ? (audioUrl ?? undefined)
-            : undefined,
-      sharedBy: by.trim(),
-      date: new Date().toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }),
-      liked: false,
-    };
-    await onSave(item);
-    setSaved(true);
-    setTimeout(() => onNav("dashboard"), 700);
-    setBusy(false);
-  };
-
-  const titles: Record<MemType, string> = {
-    photo: "Add a photo",
-    note: "Add a note",
-    voice: "Add a voice memory",
-    music: "Add a music memory",
-    meme: "Add a meme",
-  };
-
-  return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      <Header showBack onBack={() => onNav("pick-type")} onNav={onNav} />
-      <div
-        style={{
-          maxWidth: 560,
-          margin: "0 auto",
-          width: "100%",
-          padding: "48px 28px",
-        }}
-      >
-        <Rule />
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 34,
-          }}
-        >
-          <span style={{ fontSize: 24 }}>{T[memType].icon}</span>
-          <h2
-            style={{
-              fontFamily: "'Cormorant Garamond',serif",
-              fontSize: 34,
-              fontWeight: 400,
-              color: "var(--cream)",
-            }}
-          >
-            {titles[memType]}
-          </h2>
-        </div>
-        <div className="card fade-in" style={{ padding: "36px 32px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-            {/* PHOTO / MEME */}
-            {(memType === "photo" || memType === "meme") && (
-              <div>
-                <Lbl t={memType === "photo" ? "Photo" : "Meme Image"} />
-                {photoPreview ? (
-                  <div
-                    style={{
-                      position: "relative",
-                      borderRadius: 9,
-                      overflow: "hidden",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <img
-                      src={photoPreview}
-                      alt="preview"
-                      style={{
-                        width: "100%",
-                        maxHeight: 240,
-                        objectFit: "cover",
-                        display: "block",
-                        borderRadius: 9,
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        setPhotoPreview(null);
-                        setPhotoFile(null);
-                      }}
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        background: "rgba(0,0,0,.6)",
-                        border: "none",
-                        borderRadius: 6,
-                        color: "var(--cream)",
-                        fontFamily: "'Jost',sans-serif",
-                        fontSize: 11,
-                        padding: "5px 10px",
-                        cursor: "pointer",
-                        letterSpacing: ".06em",
-                      }}
-                    >
-                      Change photo
-                    </button>
-                  </div>
-                ) : (
-                  <label
-                    style={{
-                      border: "1px dashed rgba(201,162,74,.22)",
-                      borderRadius: 9,
-                      padding: "36px 16px",
-                      textAlign: "center",
-                      color: "var(--c-dim)",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 8,
-                      background: "rgba(201,162,74,.02)",
-                    }}
-                  >
-                    <UpIc sz={22} />
-                    <span style={{ fontSize: 14 }}>Tap to upload</span>
-                    <span style={{ fontSize: 11, opacity: 0.45 }}>
-                      JPG, PNG, GIF · up to 20MB
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setPhotoFile(file);
-                        setPhotoPreview(URL.createObjectURL(file));
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-            )}
-
-            {/* VOICE */}
-            {memType === "voice" && (
-              <div>
-                <Lbl t="Voice Message" />
-                <VoiceRecorder
-                  onAudio={(blob, url) => {
-                    setAudioBlob(blob);
-                    setAudioUrl(url);
-                  }}
-                />
-              </div>
-            )}
-
-            {/* MUSIC */}
-            {memType === "music" && (
-              <div>
-                <Lbl t="Music or Video Link" />
-                <div style={{ position: "relative" }}>
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 14,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "#a898c8",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    <MusicIc sz={15} />
-                  </div>
-                  <input
-                    type="url"
-                    placeholder="Paste a Spotify, YouTube, Apple Music link…"
-                    value={musicUrl}
-                    onChange={(e) => setMusicUrl(e.target.value)}
-                    style={{ paddingLeft: 40 }}
-                  />
-                </div>
-                {musicUrl && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      background: "rgba(148,130,185,.08)",
-                      border: "1px solid rgba(148,130,185,.22)",
-                      borderRadius: 9,
-                      padding: "12px 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
-                  >
-                    <MusicIc sz={14} />
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: "#a898c8",
-                        flex: 1,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {musicUrl.replace("https://", "")}
-                    </span>
-                    <a
-                      href={musicUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: "#a898c8", opacity: 0.6 }}
-                    >
-                      <ExtLink sz={12} />
-                    </a>
-                  </div>
-                )}
-                <p
-                  style={{
-                    fontSize: 11,
-                    color: "var(--c-dim)",
-                    opacity: 0.5,
-                    marginTop: 8,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Works with Spotify, YouTube, Apple Music, SoundCloud, and
-                  more.
-                </p>
-              </div>
-            )}
-
-            {/* TITLE */}
-            <div>
-              <Lbl t="Title" />
-              <input
-                placeholder={
-                  memType === "music"
-                    ? "What does this song mean to you?"
-                    : memType === "note"
-                      ? "Give this note a title"
-                      : "Give this memory a name"
-                }
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-
-            {/* CAPTION */}
-            {memType !== "voice" && (
-              <div>
-                <Lbl t={memType === "note" ? "Your note" : "Caption"} />
-                <textarea
-                  placeholder={
-                    memType === "note"
-                      ? "Write what's on your heart…"
-                      : memType === "music"
-                        ? "Why does this song matter?"
-                        : "What do you want to remember?"
-                  }
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  rows={memType === "note" ? 5 : 3}
-                  style={{ resize: "vertical" }}
-                />
-              </div>
-            )}
-
-            {/* SHARED BY */}
-            <div>
-              <Lbl t="Shared By" />
-              <input
-                placeholder="Your name or nickname"
-                value={by}
-                onChange={(e) => setBy(e.target.value)}
-              />
-            </div>
-
-            <button
-              className="btn-gold"
-              style={{
-                width: "100%",
-                marginTop: 6,
-                opacity: canSave() && !busy ? 1 : 0.38,
-              }}
-              onClick={save}
-              disabled={busy || !canSave()}
-            >
-              {saved
-                ? "Saved ✓"
-                : busy
-                  ? "Saving…"
-                  : `Save ${typeLabel} Memory`}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// INVITE
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function InviteView({
-  space,
-  onNav,
-}: {
-  space: Space;
-  onNav: (v: View) => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      <Header showBack onBack={() => onNav("dashboard")} onNav={onNav} />
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "60px 24px",
-        }}
-      >
-        <div
-          className="card fade-in"
-          style={{
-            width: "100%",
-            maxWidth: 480,
-            padding: "48px 42px",
-            textAlign: "center",
-          }}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="var(--gold)"
-            style={{ opacity: 0.42, marginBottom: 20 }}
-          >
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-          </svg>
-          <h2
-            style={{
-              fontFamily: "'Cormorant Garamond',serif",
-              fontSize: 30,
-              fontWeight: 400,
-              color: "var(--cream)",
-              marginBottom: 12,
-            }}
-          >
-            Invite someone
-          </h2>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--c-dim)",
-              lineHeight: 1.72,
-              marginBottom: 28,
-            }}
-          >
-            Only people with this link can add to your space.
-          </p>
-          <div
-            style={{
-              background: "var(--s2)",
-              border: "1px solid rgba(255,255,255,.05)",
-              borderRadius: 9,
-              padding: "14px 18px",
-              marginBottom: 16,
-              textAlign: "left",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 13,
-                color: "var(--gold)",
-                wordBreak: "break-all",
-              }}
-            >
-              {space.inviteLink}
-            </span>
-          </div>
-          <button
-            className="btn-gold"
-            style={{ width: "100%" }}
-            onClick={() => {
-              navigator.clipboard.writeText(space.inviteLink).catch(() => {});
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2200);
-            }}
-          >
-            {copied ? "Copied" : "Copy Link"}
-          </button>
-          <p
-            style={{
-              fontSize: 11,
-              color: "var(--c-dim)",
-              marginTop: 20,
-              opacity: 0.35,
-              lineHeight: 1.65,
-            }}
-          >
-            This space is completely private.
-            <br />
-            Share only with people you trust.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MEMORY DETAIL
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function DetailView({
-  mem,
-  onNav,
-  onLike,
-  onDelete,
-}: {
-  mem: MemoryItem;
-  onNav: (v: View) => void;
-  onLike: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [vp, setVp] = useState(false);
-  return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      <Header showBack onBack={() => onNav("dashboard")} onNav={onNav} />
-      <div
-        style={{
-          maxWidth: 640,
-          margin: "0 auto",
-          width: "100%",
-          padding: "48px 28px",
-        }}
-      >
-        <div className="card fade-in" style={{ overflow: "hidden" }}>
-          {(mem.type === "photo" || mem.type === "meme") && (
-            <Pic src={mem.image} alt={mem.title} h={220} r={0} />
-          )}
-          <div style={{ padding: "28px 32px" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 24,
-              }}
-            >
-              <Badge type={mem.type} />
-              <button
-                className={`hbtn${mem.liked ? " liked" : ""}`}
-                onClick={() => onLike(mem.id)}
-              >
-                <Hrt f={mem.liked} sz={14} />
-                {mem.liked ? "Saved" : "Save"}
-              </button>
-            </div>
-            {mem.type === "voice" && (
-              <div
-                onClick={() => setVp(!vp)}
-                style={{
-                  background: "rgba(201,162,74,.04)",
-                  border: "1px solid rgba(201,162,74,.1)",
-                  borderRadius: 10,
-                  padding: "18px 22px",
-                  marginBottom: 24,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  cursor: "pointer",
-                }}
-              >
-                <button
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: "50%",
-                    background: vp ? "var(--gold)" : "transparent",
-                    border: "1px solid rgba(201,162,74,.38)",
-                    color: vp ? "#100c00" : "var(--gold)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  }}
-                >
-                  {vp ? <Pause sz={13} /> : <Play sz={13} />}
-                </button>
-                <Waveform playing={vp} />
-                <span
-                  style={{ fontSize: 12, color: "var(--c-dim)", flexShrink: 0 }}
-                >
-                  0:42
-                </span>
-              </div>
-            )}
-            {mem.type === "music" && mem.url && (
-              <a
-                href={mem.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  background: "rgba(148,130,185,.07)",
-                  border: "1px solid rgba(148,130,185,.22)",
-                  borderRadius: 10,
-                  padding: "13px 17px",
-                  marginBottom: 24,
-                  textDecoration: "none",
-                  color: "#a898c8",
-                  fontSize: 14,
-                }}
-              >
-                <MusicIc sz={15} />
-                <span
-                  style={{
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {mem.url}
-                </span>
-                <ExtLink sz={13} />
-              </a>
-            )}
-            <h1
-              style={{
-                fontFamily: "'Cormorant Garamond',serif",
-                fontSize: 32,
-                fontWeight: 400,
-                color: "var(--cream)",
-                marginBottom: 16,
-                lineHeight: 1.2,
-              }}
-            >
-              {mem.title}
-            </h1>
-            <p
-              style={
-                {
-                  fontSize: mem.type === "note" ? 20 : 15,
-                  fontFamily:
-                    mem.type === "note"
-                      ? "'Cormorant Garamond',serif"
-                      : "'Jost',sans-serif",
-                  fontStyle: mem.type === "note" ? "italic" : "normal",
-                  color: "var(--c-mid)",
-                  lineHeight: 1.84,
-                  marginBottom: 28,
-                } as React.CSSProperties
-              }
-            >
-              {mem.caption}
-            </p>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                paddingTop: 20,
-                borderTop: "1px solid rgba(255,255,255,.042)",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: ".14em",
-                    textTransform: "uppercase",
-                    color: "var(--c-dim)",
-                    opacity: 0.38,
-                    marginBottom: 4,
-                  }}
-                >
-                  Shared by
-                </div>
-                <div
-                  style={{
-                    fontFamily: "'Cormorant Garamond',serif",
-                    fontSize: 18,
-                    color: "var(--gold)",
-                  }}
-                >
-                  {mem.sharedBy}
-                </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: ".14em",
-                    textTransform: "uppercase",
-                    color: "var(--c-dim)",
-                    opacity: 0.38,
-                    marginBottom: 4,
-                  }}
-                >
-                  Date
-                </div>
-                <div style={{ fontSize: 13, color: "var(--c-dim)" }}>
-                  {mem.date}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-              <button
-                className="btn-ghost"
-                style={{ flex: 1, padding: "11px 0" }}
-                onClick={() => onNav("edit")}
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(mem.id)}
-                style={{
-                  flex: 1,
-                  padding: "11px 0",
-                  background: "transparent",
-                  border: "1px solid rgba(195,80,80,.3)",
-                  borderRadius: "var(--rs)",
-                  color: "rgba(220,100,100,.8)",
-                  fontFamily: "'Jost',sans-serif",
-                  fontSize: 12,
-                  fontWeight: 400,
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                  transition: "border-color .2s,color .2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(220,80,80,.6)";
-                  e.currentTarget.style.color = "rgba(240,110,110,1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(195,80,80,.3)";
-                  e.currentTarget.style.color = "rgba(220,100,100,.8)";
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EDIT MEMORY
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function EditMemoryView({
-  mem,
-  onNav,
-  onSave,
-}: {
-  mem: MemoryItem;
-  onNav: (v: View) => void;
-  onSave: (updated: MemoryItem) => void;
-}) {
-  const [title, setTitle] = useState(mem.title);
-  const [caption, setCaption] = useState(mem.caption);
-  const [musicUrl, setMusicUrl] = useState(mem.url ?? "");
-  const [by, setBy] = useState(mem.sharedBy);
-  const [busy, setBusy] = useState(false);
-
-  const save = async () => {
-    if (!title.trim() || !by.trim()) return;
-    setBusy(true);
-    await onSave({
-      ...mem,
-      title: title.trim(),
-      caption: caption.trim(),
-      url: mem.type === "music" ? musicUrl : mem.url,
-      sharedBy: by.trim(),
-    });
-    setBusy(false);
-  };
-
-  return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
-      <Header showBack onBack={() => onNav("detail")} onNav={onNav} />
-      <div
-        style={{
-          maxWidth: 560,
-          margin: "0 auto",
-          width: "100%",
-          padding: "48px 28px",
-        }}
-      >
-        <Rule />
-        <h2
-          style={{
-            fontFamily: "'Cormorant Garamond',serif",
-            fontSize: 34,
-            fontWeight: 400,
-            marginBottom: 34,
-            color: "var(--cream)",
-          }}
-        >
-          Edit memory
-        </h2>
-        <div className="card fade-in" style={{ padding: "36px 32px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-            <div>
-              <Lbl t="Title" />
-              <input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-            {mem.type !== "voice" && (
-              <div>
-                <Lbl t={mem.type === "note" ? "Your note" : "Caption"} />
-                <textarea
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  rows={3}
-                  style={{ resize: "vertical" }}
-                />
-              </div>
-            )}
-            {mem.type === "music" && (
-              <div>
-                <Lbl t="Music Link" />
-                <input
-                  type="url"
-                  value={musicUrl}
-                  onChange={(e) => setMusicUrl(e.target.value)}
-                />
-              </div>
-            )}
-            <div>
-              <Lbl t="Shared By" />
-              <input value={by} onChange={(e) => setBy(e.target.value)} />
-            </div>
-            <button
-              className="btn-gold"
-              style={{ width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }}
-              onClick={save}
-              disabled={busy}
-            >
-              {busy ? "Saving…" : "Save Changes"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// APP ROOT
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export default function App() {
-  const [view, setView] = useState<View>("landing");
-  const [userId, setUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [dbSpace, setDbSpace] = useState<{
-    id: string;
-    name: string;
-    invite_code: string;
-  } | null>(null);
-  const [memories, setMemories] = useState<MemoryItem[]>(
-    SAMPLE_MEMORIES.map((m) => ({ ...m })),
-  );
-  const [sel, setSel] = useState<MemoryItem | null>(null);
-  const [memType, setMemType] = useState<MemType>("photo");
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null);
-      setLoading(false);
-    });
-
-    // Immediate check for mobile
-    const timer = setTimeout(() => setLoading(false), 4000);
-
-    supabase.auth.getSession().then(({ data }) => {
-      clearTimeout(timer);
-      setUserId(data.session?.user?.id ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  function dbToLocal(m: any): MemoryItem {
-    return {
-      id: m.id,
-      type: m.type,
-      title: m.title,
-      caption: m.caption ?? "",
-      image: m.image_url ?? m.image_path ?? undefined,
-      url: m.url ?? undefined,
-      sharedBy: m.shared_by ?? "",
-      date: new Date(m.created_at).toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }),
-      liked: m.liked ?? false,
-    };
-  }
-
-  const handleAuth = useCallback(
-    async (email: string, password: string, mode: "create" | "login") => {
-      try {
-        let user;
-        if (mode === "create") user = await signUp(email, password);
-        else user = await logIn(email, password);
-
-        if (user) {
-          setUserId(user.id);
-          try {
-            const spaces = (await Promise.race([
-              loadMySpaces(),
-              new Promise((_, r) =>
-                setTimeout(() => r(new Error("timeout")), 5000),
-              ),
-            ])) as any[];
-            if (spaces.length > 0) {
-              const s = spaces[0];
-              setDbSpace({
-                id: s.id,
-                name: s.name,
-                invite_code: s.invite_code,
-              });
-              const mems = await loadMemories(s.id);
-              setMemories(mems.map(dbToLocal));
-              setView("dashboard");
-            } else {
-              setView("create-space");
-            }
-          } catch {
-            setView("create-space");
-          }
-        }
-      } catch (e: any) {
-        alert(e.message ?? "Something went wrong. Please try again.");
-      }
-    },
-    [],
-  );
-  const handleCreateSpace = useCallback(async (name: string) => {
-    try {
-      const s = await createSpace(name);
-      setDbSpace({ id: s.id, name: s.name, invite_code: s.invite_code });
-      setMemories([]);
-      setView("dashboard");
-    } catch (e: any) {
-      alert(e.message);
-    }
-  }, []);
-
-  const handleToggleLike = useCallback(
-    async (id: string) => {
-      const mem = memories.find((m) => m.id === id);
-      if (!mem) return;
-      setMemories((ms) =>
-        ms.map((m) => (m.id === id ? { ...m, liked: !m.liked } : m)),
-      );
-      setSel((s) => (s && s.id === id ? { ...s, liked: !s.liked } : s));
-      try {
-        await sbToggleLike(id, mem.liked);
-      } catch {
-        setMemories((ms) =>
-          ms.map((m) => (m.id === id ? { ...m, liked: mem.liked } : m)),
-        );
-      }
-    },
-    [memories],
-  );
-
-  const handleSave = useCallback(
-    async (item: MemoryItem) => {
-      if (!dbSpace || !userId) {
-        setMemories((ms) => [item, ...ms]);
-        return;
-      }
-      try {
-        let imagePath: string | undefined;
-        if (item.image && item.image.startsWith("blob:")) {
-          const res = await fetch(item.image);
-          const blob = await res.blob();
-          const file = new File(
-            [blob],
-            `memory.${blob.type.split("/")[1] || "jpg"}`,
-            { type: blob.type },
-          );
-          imagePath = await uploadPhoto(file, userId);
-        }
-        let voicePath: string | undefined;
-        if (item.type === "voice" && item.url && item.url.startsWith("blob:")) {
-          const res = await fetch(item.url);
-          const blob = await res.blob();
-          const file = new File([blob], `voice.webm`, { type: blob.type });
-          voicePath = await uploadVoice(file, userId);
-        }
-        const saved = await addMemory({
-          spaceId: dbSpace.id,
-          type: item.type,
-          title: item.title,
-          caption: item.caption,
-          url: item.type === "music" ? item.url : voicePath,
-          imagePath,
-          sharedBy: item.sharedBy,
-        });
-        setMemories((ms) => [dbToLocal(saved), ...ms]);
-      } catch {
-        setMemories((ms) => [item, ...ms]);
-      }
-    },
-    [dbSpace, userId],
-  );
-
-  const handleDelete = useCallback(async (id: string) => {
-    if (!window.confirm("Delete this memory? This can't be undone.")) return;
-    setMemories((ms) => ms.filter((m) => m.id !== id));
-    setView("dashboard");
-    try {
-      await deleteMemory(id);
-    } catch {}
-  }, []);
-
-  const handleEdit = useCallback(async (updated: MemoryItem) => {
-    setMemories((ms) => ms.map((m) => (m.id === updated.id ? updated : m)));
-    setSel(updated);
-    setView("detail");
-    try {
-      await updateMemory(updated.id, {
-        title: updated.title,
-        caption: updated.caption,
-        url: updated.url,
-        shared_by: updated.sharedBy,
-      });
-    } catch {}
-  }, []);
-
-  const space: Space = {
-    name: dbSpace?.name ?? "Our Moments",
-    memories,
-    inviteLink: dbSpace
-      ? getInviteUrl(dbSpace.invite_code)
-      : "myevernear.com/join/...",
-  };
-
-  if (loading) {
-    return (
-      <>
-        <style>{CSS}</style>
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "var(--black)",
-          }}
-        >
-          <div style={{ textAlign: "center" }}>
-            <div
-              style={{
-                width: 1,
-                height: 44,
-                background: "var(--gold)",
-                opacity: 0.3,
-                margin: "0 auto 24px",
-              }}
-            />
-            <p
-              style={{
-                fontFamily: "'Cormorant Garamond',serif",
-                fontSize: 22,
-                color: "var(--cream)",
-                opacity: 0.6,
-              }}
-            >
-              Loading…
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <style>{CSS}</style>
-      {view === "landing" && <LandingView onNav={setView} />}
-      {view === "auth" && (
-        <AuthView onNav={setView} defaultMode="create" onAuth={handleAuth} />
-      )}
-      {view === "login" && (
-        <AuthView onNav={setView} defaultMode="login" onAuth={handleAuth} />
-      )}
-      {view === "create-space" && (
-        <CreateSpaceView onNav={setView} onCreate={handleCreateSpace} />
-      )}
-      {view === "dashboard" && (
-        <DashboardView
-          space={space}
-          onNav={setView}
-          onLike={handleToggleLike}
-          onSel={(m) => {
-            setSel(m);
-            setView("detail");
-          }}
-        />
-      )}
-      {view === "pick-type" && (
-        <PickTypeView onNav={setView} onPick={(t) => setMemType(t)} />
-      )}
-      {view === "add-memory" && (
-        <AddMemoryView onNav={setView} onSave={handleSave} memType={memType} />
-      )}
-      {view === "invite" && <InviteView space={space} onNav={setView} />}
-      {view === "detail" && sel && (
-        <DetailView
-          mem={sel}
-          onNav={setView}
-          onLike={handleToggleLike}
-          onDelete={handleDelete}
-        />
-      )}
-      {view === "edit" && sel && (
-        <EditMemoryView mem={sel} onNav={setView} onSave={handleEdit} />
-      )}
-    </>
-  );
-}
-// Mon Jun  1 03:20:08 AM UTC 2026
+// ══════════�

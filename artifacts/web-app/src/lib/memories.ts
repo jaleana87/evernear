@@ -60,6 +60,22 @@ export async function addMemory(input: NewMemoryInput): Promise<Memory> {
   return hydrate(data);
 }
 
+// Guest memory — no auth required, uses anon key
+export async function addGuestMemory(input: NewMemoryInput): Promise<void> {
+  const { error } = await supabase.from("memories").insert({
+    space_id: input.spaceId,
+    user_id: null,
+    type: input.type,
+    title: input.title,
+    caption: input.caption ?? null,
+    url: input.url ?? null,
+    image_path: input.imagePath ?? null,
+    shared_by: input.sharedBy ?? null,
+    liked: false,
+  });
+  if (error) throw error;
+}
+
 export async function toggleLike(
   memoryId: string,
   currentLiked: boolean,
