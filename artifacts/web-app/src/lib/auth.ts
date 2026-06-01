@@ -31,8 +31,15 @@ export async function getUser() {
 }
 
 export function onAuthChange(callback: (userId: string | null) => void) {
+  // On mobile, onAuthStateChange sometimes never fires on first load.
+  // We check the session immediately as a fallback.
+  supabase.auth.getSession().then(({ data }) => {
+    callback(data.session?.user?.id ?? null);
+  });
+
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session?.user?.id ?? null);
   });
+
   return () => data.subscription.unsubscribe();
 }
