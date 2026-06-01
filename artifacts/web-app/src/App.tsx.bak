@@ -3722,6 +3722,28 @@ export default function App() {
       setLoading(false);
     });
 
+    return () => subscription.unsubscribe();
+  }, []);
+
+    // Immediate session check with timeout fallback
+    const sessionTimeout = setTimeout(() => {
+      resolve(null);
+    }, 3000);
+
+    supabase.auth.getSession().then(({ data }) => {
+      clearTimeout(sessionTimeout);
+      resolve(data.session?.user?.id ?? null);
+    });
+    // Also listen for changes (login, logout)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      settled = false; // allow re-resolution on auth change
+      resolve(session?.user?.id ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   function dbToLocal(m: any): MemoryItem {
     return {
