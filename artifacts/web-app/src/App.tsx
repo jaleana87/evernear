@@ -3803,6 +3803,13 @@ export default function App() {
           const file = new File([blob], `voice.webm`, { type: blob.type });
           voicePath = await uploadVoice(file, userId);
         }
+        let voicePublicUrl: string | undefined;
+        if (item.type === "voice" && voicePath) {
+          const { data } = supabase.storage
+            .from("memory-voice")
+            .getPublicUrl(voicePath);
+          voicePublicUrl = data.publicUrl;
+        }
         const saved = await addMemory({
           spaceId: dbSpace.id,
           type: item.type,
@@ -3812,7 +3819,7 @@ export default function App() {
             item.type === "music"
               ? item.url
               : item.type === "voice"
-                ? voicePath
+                ? voicePublicUrl
                 : undefined,
           imagePath: item.type === "voice" ? undefined : imagePath,
           sharedBy: item.sharedBy,
