@@ -3123,15 +3123,13 @@ function DetailView({
             {(!isGuest ||
               (isGuest && guestName && mem.sharedBy === guestName)) && (
               <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                {!isGuest && (
-                  <button
-                    className="btn-ghost"
-                    style={{ flex: 1, padding: "11px 0" }}
-                    onClick={() => onNav("edit")}
-                  >
-                    Edit
-                  </button>
-                )}
+                <button
+                  className="btn-ghost"
+                  style={{ flex: 1, padding: "11px 0" }}
+                  onClick={() => onNav("edit")}
+                >
+                  Edit
+                </button>
                 <button
                   onClick={() => onDelete(mem.id)}
                   style={{
