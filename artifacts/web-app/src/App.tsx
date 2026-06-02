@@ -3119,7 +3119,8 @@ function DetailView({
                 </div>
               </div>
             </div>
-            {/* Owner: full edit+delete. Guest: delete own memories only */}
+            {(!isGuest || (isGuest && guestName && mem.sharedBy === guestName)) && (
+              <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
                 <button className="btn-ghost" style={{ flex: 1, padding: "11px 0" }} onClick={() => onNav("edit")}>Edit</button>
                 <button
                   onClick={() => onDelete(mem.id)}
