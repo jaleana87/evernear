@@ -3394,79 +3394,28 @@ export default function App() {
   }, [userId]);
 
   // Real-time sync for owner
+  // Poll for new memories every 10 seconds (owner)
   useEffect(() => {
     if (!dbSpace) return;
-    const channel = supabase
-      .channel("owner-memories-" + dbSpace.id)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "memories",
-          filter: `space_id=eq.${dbSpace.id}`,
-        },
-        (payload: any) => {
-          if (payload.eventType === "INSERT") {
-            setMemories((ms) => {
-              if (ms.find((m) => m.id === payload.new.id)) return ms;
-              return [dbToLocal(payload.new), ...ms];
-            });
-          }
-          if (payload.eventType === "DELETE") {
-            setMemories((ms) => ms.filter((m) => m.id !== payload.old.id));
-          }
-          if (payload.eventType === "UPDATE") {
-            setMemories((ms) =>
-              ms.map((m) =>
-                m.id === payload.new.id ? dbToLocal(payload.new) : m,
-              ),
-            );
-          }
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(async () => {
+      try {
+        const mems = await loadMemories(dbSpace.id);
+        setMemories(mems.map(dbToLocal));
+      } catch {}
+    }, 10000);
+    return () => clearInterval(interval);
   }, [dbSpace]);
-
   // Real-time sync for guest
+  // Poll for new memories every 10 seconds (guest)
   useEffect(() => {
     if (!guestSpace) return;
-    const channel = supabase
-      .channel("guest-memories-" + guestSpace.id)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "memories",
-          filter: `space_id=eq.${guestSpace.id}`,
-        },
-        (payload: any) => {
-          if (payload.eventType === "INSERT") {
-            setGuestMemories((ms) => {
-              if (ms.find((m) => m.id === payload.new.id)) return ms;
-              return [dbToLocal(payload.new), ...ms];
-            });
-          }
-          if (payload.eventType === "DELETE") {
-            setGuestMemories((ms) => ms.filter((m) => m.id !== payload.old.id));
-          }
-          if (payload.eventType === "UPDATE") {
-            setGuestMemories((ms) =>
-              ms.map((m) =>
-                m.id === payload.new.id ? dbToLocal(payload.new) : m,
-              ),
-            );
-          }
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(async () => {
+      try {
+        const mems = await loadMemories(guestSpace.id);
+        setGuestMemories(mems.map(dbToLocal));
+      } catch {}
+    }, 10000);
+    return () => clearInterval(interval);
   }, [guestSpace]);
 
   const handleAuth = useCallback(
