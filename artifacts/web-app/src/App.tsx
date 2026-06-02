@@ -1990,7 +1990,9 @@ function GuestNameView({ onDone }: { onDone: (name: string) => void }) {
   const [name, setName] = useState("");
   const save = () => {
     if (!name.trim()) return;
-    localStorage.setItem("evernear_guest_name", name.trim());
+    try {
+      localStorage.setItem("evernear_guest_name", name.trim());
+    } catch {}
     onDone(name.trim());
   };
   return (
@@ -3571,9 +3573,13 @@ export default function App() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [sel, setSel] = useState<MemoryItem | null>(null);
   const [memType, setMemType] = useState<MemType>("photo");
-  const [guestName, setGuestName] = useState<string>(
-    () => localStorage.getItem("evernear_guest_name") ?? "",
-  );
+  const [guestName, setGuestName] = useState<string>(() => {
+    try {
+      return localStorage.getItem("evernear_guest_name") ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [guestSpace, setGuestSpace] = useState<{
     id: string;
     name: string;
