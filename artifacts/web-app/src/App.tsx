@@ -3308,12 +3308,21 @@ export default function App() {
   const [isGuestView, setIsGuestView] = useState(false);
 
   function dbToLocal(m: any): MemoryItem {
+    let image: string | undefined;
+    if (m.image_url) {
+      image = m.image_url;
+    } else if (m.image_path) {
+      const { data } = supabase.storage
+        .from("memory-photos")
+        .getPublicUrl(m.image_path);
+      image = data.publicUrl;
+    }
     return {
       id: m.id,
       type: m.type,
       title: m.title,
       caption: m.caption ?? "",
-      image: m.image_url ?? m.image_path ?? undefined,
+      image,
       url: m.url ?? undefined,
       sharedBy: m.shared_by ?? "",
       date: new Date(m.created_at).toLocaleDateString("en-US", {
