@@ -2099,30 +2099,37 @@ function GuestSpaceView({
     <div
       style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
     >
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          background: "rgba(11,10,9,.97)",
-          backdropFilter: "blur(24px)",
-          borderBottom: "1px solid rgba(255,255,255,.042)",
-          padding: "0 24px",
-          height: 70,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Logo compact />
-        <button
-          className="btn-gold"
-          style={{ padding: "10px 20px", fontSize: 11 }}
-          onClick={onAddMemory}
-        >
-          + Add Memory
-        </button>
-      </header>
+      <Header
+        onNav={onNav}
+        right={
+          <>
+            <button
+              className="btn-ghost"
+              style={{ padding: "9px 18px", fontSize: 11 }}
+              onClick={() => onNav("invite")}
+            >
+              Invite
+            </button>
+            <button
+              className="btn-gold"
+              style={{ padding: "9px 18px", fontSize: 11 }}
+              onClick={() => onNav("pick-type")}
+            >
+              + Add Memory
+            </button>
+            <button
+              className="btn-ghost"
+              style={{ padding: "9px 18px", fontSize: 11 }}
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.href = "/";
+              }}
+            >
+              Log Out
+            </button>
+          </>
+        }
+      />
       <div
         style={{
           maxWidth: 960,
