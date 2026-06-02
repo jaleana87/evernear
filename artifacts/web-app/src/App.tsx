@@ -83,7 +83,8 @@ type View =
   | "guest-space"
   | "guest-name"
   | "guest-pick-type"
-  | "guest-add";
+  | "guest-add"
+  | "claim";
 
 interface MemoryItem {
   id: string;
@@ -1708,6 +1709,282 @@ function AddMemoryForm({
   );
 }
 
+// CLAIM SPACE VIEW — shown when someone taps an unclaimed NFC keychain
+function ClaimSpaceView({
+  spaceCode,
+  onClaimed,
+}: {
+  spaceCode: string;
+  onClaimed: (spaceName: string, userId: string) => void;
+}) {
+  const [step, setStep] = useState<"welcome" | "signup">("welcome");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [spaceName, setSpaceName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const examples = [
+    "Our Moments",
+    "Mom & Me",
+    "For You",
+    "Always Us",
+    "Best Friends",
+  ];
+
+  const claim = async () => {
+    if (!email.trim() || !pass.trim() || !spaceName.trim()) return;
+    setBusy(true);
+    try {
+      // Sign up the user
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: pass,
+      });
+      if (error) throw error;
+      const userId = data.user?.id;
+      if (!userId) throw new Error("Signup failed");
+
+      // Claim the space — set owner_id and update name
+      const { error: updateError } = await supabase
+        .from("spaces")
+        .update({ owner_id: userId, name: spaceName.trim() })
+        .eq("invite_code", spaceCode)
+        .is("owner_id", null);
+      if (updateError) throw updateError;
+
+      // Add them as a space member
+      const { data: spaceData } = await supabase
+        .from("spaces")
+        .select("id")
+        .eq("invite_code", spaceCode)
+        .single();
+      if (spaceData) {
+        await supabase
+          .from("space_members")
+          .insert({ space_id: spaceData.id, user_id: userId });
+      }
+
+      onClaimed(spaceName.trim(), userId);
+    } catch (e: any) {
+      alert(e.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (step === "welcome") {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 24px",
+          background: "var(--black)",
+        }}
+      >
+        <div
+          className="card fade-in"
+          style={{
+            width: "100%",
+            maxWidth: 460,
+            padding: "52px 44px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 48, marginBottom: 24 }}>🤍</div>
+          <Rule />
+          <h1
+            style={{
+              fontFamily: "'Cormorant Garamond',serif",
+              fontSize: 38,
+              fontWeight: 300,
+              color: "var(--cream)",
+              marginBottom: 16,
+              lineHeight: 1.15,
+            }}
+          >
+            This space is yours.
+          </h1>
+          <p
+            style={{
+              fontSize: 15,
+              color: "var(--c-dim)",
+              lineHeight: 1.8,
+              marginBottom: 36,
+              maxWidth: 340,
+              margin: "0 auto 36px",
+            }}
+          >
+            You're holding an EverNear keychain. Create your account to set up
+            your private shared space — then give the other keychain to someone
+            you love.
+          </p>
+          <button
+            className="btn-gold"
+            style={{ width: "100%", fontSize: 13, padding: "16px 0" }}
+            onClick={() => setStep("signup")}
+          >
+            Claim Your Space
+          </button>
+          <p
+            style={{
+              fontSize: 11,
+              color: "var(--c-dim)",
+              marginTop: 20,
+              opacity: 0.45,
+              lineHeight: 1.6,
+            }}
+          >
+            Takes less than a minute.
+            <br />
+            No credit card needed.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 24px",
+        background: "var(--black)",
+      }}
+    >
+      <div
+        className="card fade-in"
+        style={{ width: "100%", maxWidth: 460, padding: "48px 44px" }}
+      >
+        <Rule />
+        <h2
+          style={{
+            fontFamily: "'Cormorant Garamond',serif",
+            fontSize: 32,
+            fontWeight: 400,
+            color: "var(--cream)",
+            marginBottom: 8,
+          }}
+        >
+          Set up your space
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--c-dim)",
+            marginBottom: 32,
+            lineHeight: 1.65,
+          }}
+        >
+          Create your account and give your space a name.
+        </p>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            marginBottom: 24,
+          }}
+        >
+          <div>
+            <Lbl t="Space Name" />
+            <input
+              placeholder="e.g. Our Moments"
+              value={spaceName}
+              onChange={(e) => setSpaceName(e.target.value)}
+              style={{ fontSize: 16 }}
+            />
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                marginTop: 10,
+              }}
+            >
+              {examples.map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => setSpaceName(ex)}
+                  style={{
+                    background:
+                      spaceName === ex ? "rgba(201,162,74,.1)" : "transparent",
+                    border: `1px solid ${spaceName === ex ? "rgba(201,162,74,.35)" : "rgba(255,255,255,.06)"}`,
+                    borderRadius: 20,
+                    fontSize: 11,
+                    color: spaceName === ex ? "var(--gold)" : "var(--c-dim)",
+                    padding: "5px 12px",
+                    cursor: "pointer",
+                    fontFamily: "'Jost',sans-serif",
+                  }}
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Lbl t="Email" />
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && claim()}
+            />
+          </div>
+          <div>
+            <Lbl t="Password" />
+            <input
+              type="password"
+              placeholder="Create a password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && claim()}
+            />
+          </div>
+        </div>
+        <button
+          className="btn-gold"
+          style={{
+            width: "100%",
+            opacity: email && pass && spaceName && !busy ? 1 : 0.4,
+          }}
+          onClick={claim}
+          disabled={busy || !email || !pass || !spaceName}
+        >
+          {busy ? "Setting up your space…" : "Create My Space"}
+        </button>
+        <p
+          style={{
+            fontSize: 11,
+            color: "var(--c-dim)",
+            marginTop: 16,
+            opacity: 0.4,
+            textAlign: "center",
+            lineHeight: 1.6,
+          }}
+        >
+          Already have an account?{" "}
+          <button
+            className="btn-text"
+            style={{ fontSize: 11 }}
+            onClick={() => (window.location.href = "/")}
+          >
+            Log in instead
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // GUEST NAME VIEW
 function GuestNameView({ onDone }: { onDone: (name: string) => void }) {
   const [name, setName] = useState("");
@@ -3119,13 +3396,24 @@ function DetailView({
                 </div>
               </div>
             </div>
-            {(!isGuest || (isGuest && guestName && mem.sharedBy === guestName)) && (
+            {/* Owner: full edit+delete. Guest: delete own memories only */}
+            {(!isGuest ||
+              (isGuest && guestName && mem.sharedBy === guestName)) && (
               <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                <button className="btn-ghost" style={{ flex: 1, padding: "11px 0" }} onClick={() => onNav("edit")}>Edit</button>
+                {!isGuest && (
+                  <button
+                    className="btn-ghost"
+                    style={{ flex: 1, padding: "11px 0" }}
+                    onClick={() => onNav("edit")}
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   onClick={() => onDelete(mem.id)}
                   style={{
-                    flex: 1,
+                    flex: isGuest ? "unset" : 1,
+                    width: isGuest ? "100%" : "auto",
                     padding: "11px 0",
                     background: "transparent",
                     border: "1px solid rgba(195,80,80,.3)",
@@ -3288,6 +3576,7 @@ export default function App() {
   const [guestMemories, setGuestMemories] = useState<MemoryItem[]>([]);
   const [guestMemType, setGuestMemType] = useState<MemType>("photo");
   const [isGuestView, setIsGuestView] = useState(false);
+  const [claimSpaceCode, setClaimSpaceCode] = useState<string>("");
 
   function dbToLocal(m: any): MemoryItem {
     let image: string | undefined;
@@ -3331,6 +3620,13 @@ export default function App() {
       loadSpaceByCode(code)
         .then(async (space) => {
           if (space) {
+            // Check if space is unclaimed (no owner)
+            if (!space.owner_id) {
+              setClaimSpaceCode(code);
+              setLoading(false);
+              setView("claim");
+              return;
+            }
             setGuestSpace({ id: space.id, name: space.name });
             const mems = await loadMemories(space.id);
             setGuestMemories(mems.map(dbToLocal));
@@ -3640,6 +3936,32 @@ export default function App() {
   return (
     <>
       <style>{CSS}</style>
+      {view === "claim" && claimSpaceCode && (
+        <ClaimSpaceView
+          spaceCode={claimSpaceCode}
+          onClaimed={async (name, uid) => {
+            setUserId(uid);
+            try {
+              const spaces = await loadMySpaces();
+              if (spaces.length > 0) {
+                const s = spaces[0];
+                setDbSpace({
+                  id: s.id,
+                  name: s.name,
+                  invite_code: s.invite_code,
+                });
+                const mems = await loadMemories(s.id);
+                setMemories(mems.map(dbToLocal));
+                setView("dashboard");
+              } else {
+                setView("create-space");
+              }
+            } catch {
+              setView("create-space");
+            }
+          }}
+        />
+      )}
       {view === "guest-name" && (
         <GuestNameView
           onDone={(name) => {
