@@ -3849,7 +3849,7 @@ export default function App() {
           imagePath = await uploadPhoto(file, "guest_" + Date.now());
         }
         let voiceUrl: string | undefined = item.url;
-        if (item.type === "voice" && item.url && item.url.startsWith("blob:")) {
+        if (item.type === "voice" && item.url) {
           const res = await fetch(item.url);
           const blob = await res.blob();
           const file = new File([blob], `voice.webm`, { type: blob.type });
