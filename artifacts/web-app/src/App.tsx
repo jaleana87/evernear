@@ -3979,25 +3979,24 @@ export default function App() {
             }
           }}
         />
-      )}
-      {view === "guest-name" && (
-        <GuestNameView
-          onDone={(name) => {
-            setGuestName(name);
-            setView("guest-space");
-          }}
-        />
+      )}{view === "guest-space" && !guestSpace && <div style={{color:"white",padding:40,fontSize:20}}>Error: no space data</div>}
+      {view === "guest-space" && guestSpace && (
+        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName}
+          onAddMemory={() => setView("guest-pick-type")}
+          onSel={(m) => { setSel(m); setView("detail"); }} />
       )}
       {view === "guest-space" && guestSpace && (
-        <GuestSpaceView
-          space={guestSpace}
-          memories={guestMemories}
-          guestName={guestName}
+        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName}
           onAddMemory={() => setView("guest-pick-type")}
-          onSel={(m) => {
-            setSel(m);
-            setView("detail");
-          }}
+          onSel={(m) => { setSel(m); setView("detail"); }} />
+      )}
+          {view === "guest-space" && guestSpace && (
+            <React.Suspense fallback={<div style={{color:"white",padding:40}}>Loading...</div>}>
+              <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName}
+                onAddMemory={() => setView("guest-pick-type")}
+                onSel={(m) => { setSel(m); setView("detail"); }} />
+            </React.Suspense>
+          )}
         />
       )}
       {view === "guest-pick-type" && (
