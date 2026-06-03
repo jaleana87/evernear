@@ -1990,9 +1990,7 @@ function GuestNameView({ onDone }: { onDone: (name: string) => void }) {
   const [name, setName] = useState("");
   const save = () => {
     if (!name.trim()) return;
-    try {
-      localStorage.setItem("evernear_guest_name", name.trim());
-    } catch {}
+    localStorage.setItem("evernear_guest_name", name.trim());
     onDone(name.trim());
   };
   return (
@@ -2101,37 +2099,30 @@ function GuestSpaceView({
     <div
       style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
     >
-      <Header
-        onNav={onNav}
-        right={
-          <>
-            <button
-              className="btn-ghost"
-              style={{ padding: "9px 18px", fontSize: 11 }}
-              onClick={() => onNav("invite")}
-            >
-              Invite
-            </button>
-            <button
-              className="btn-gold"
-              style={{ padding: "9px 18px", fontSize: 11 }}
-              onClick={() => onNav("pick-type")}
-            >
-              + Add Memory
-            </button>
-            <button
-              className="btn-ghost"
-              style={{ padding: "9px 18px", fontSize: 11 }}
-              onClick={async () => {
-                await supabase.auth.signOut();
-                window.location.href = "/";
-              }}
-            >
-              Log Out
-            </button>
-          </>
-        }
-      />
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "rgba(11,10,9,.97)",
+          backdropFilter: "blur(24px)",
+          borderBottom: "1px solid rgba(255,255,255,.042)",
+          padding: "0 24px",
+          height: 70,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Logo compact />
+        <button
+          className="btn-gold"
+          style={{ padding: "10px 20px", fontSize: 11 }}
+          onClick={onAddMemory}
+        >
+          + Add Memory
+        </button>
+      </header>
       <div
         style={{
           maxWidth: 960,
@@ -2850,37 +2841,39 @@ function DashboardView({
     <div
       style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
     >
-      <Header
-        onNav={onNav}
-        right={
-          <>
-            <button
-              className="btn-ghost"
-              style={{ padding: "9px 18px", fontSize: 11 }}
-              onClick={() => onNav("invite")}
-            >
-              Invite
-            </button>
-            <button
-              className="btn-gold"
-              style={{ padding: "9px 18px", fontSize: 11 }}
-              onClick={() => onNav("pick-type")}
-            >
-              + Add Memory
-            </button>
-            <button
-              className="btn-ghost"
-              style={{ padding: "9px 18px", fontSize: 11 }}
-              onClick={async () => {
-                await supabase.auth.signOut();
-                window.location.href = "/";
-              }}
-            >
-              Log Out
-            </button>
-          </>
-        }
-      />
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "rgba(11,10,9,.97)",
+          backdropFilter: "blur(24px)",
+          borderBottom: "1px solid rgba(255,255,255,.042)",
+          padding: "0 24px",
+          height: 70,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Logo compact />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className="btn-ghost"
+            style={{ padding: "9px 18px", fontSize: 11 }}
+            onClick={() => onNav("invite")}
+          >
+            Invite
+          </button>
+          <button
+            className="btn-gold"
+            style={{ padding: "9px 18px", fontSize: 11 }}
+            onClick={() => onNav("pick-type")}
+          >
+            + Add Memory
+          </button>
+        </div>
+      </header>
       <div
         style={{
           maxWidth: 960,
@@ -3573,13 +3566,9 @@ export default function App() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [sel, setSel] = useState<MemoryItem | null>(null);
   const [memType, setMemType] = useState<MemType>("photo");
-  const [guestName, setGuestName] = useState<string>(() => {
-    try {
-      return localStorage.getItem("evernear_guest_name") ?? "";
-    } catch {
-      return "";
-    }
-  });
+  const [guestName, setGuestName] = useState<string>(
+    () => localStorage.getItem("evernear_guest_name") ?? "",
+  );
   const [guestSpace, setGuestSpace] = useState<{
     id: string;
     name: string;
@@ -3809,13 +3798,6 @@ export default function App() {
           const file = new File([blob], `voice.webm`, { type: blob.type });
           voicePath = await uploadVoice(file, userId);
         }
-        let voicePublicUrl: string | undefined;
-        if (item.type === "voice" && voicePath) {
-          const { data } = supabase.storage
-            .from("memory-voice")
-            .getPublicUrl(voicePath);
-          voicePublicUrl = data.publicUrl;
-        }
         const saved = await addMemory({
           spaceId: dbSpace.id,
           type: item.type,
@@ -3825,7 +3807,7 @@ export default function App() {
             item.type === "music"
               ? item.url
               : item.type === "voice"
-                ? voicePublicUrl
+                ? voicePath
                 : undefined,
           imagePath: item.type === "voice" ? undefined : imagePath,
           sharedBy: item.sharedBy,
@@ -3855,7 +3837,7 @@ export default function App() {
           imagePath = await uploadPhoto(file, "guest_" + Date.now());
         }
         let voiceUrl: string | undefined = item.url;
-        if (item.type === "voice" && item.url) {
+        if (item.type === "voice" && item.url && item.url.startsWith("blob:")) {
           const res = await fetch(item.url);
           const blob = await res.blob();
           const file = new File([blob], `voice.webm`, { type: blob.type });
@@ -3979,24 +3961,25 @@ export default function App() {
             }
           }}
         />
-      )}{view === "guest-space" && !guestSpace && <div style={{color:"white",padding:40,fontSize:20}}>Error: no space data</div>}
-      {view === "guest-space" && guestSpace && (
-        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName}
-          onAddMemory={() => setView("guest-pick-type")}
-          onSel={(m) => { setSel(m); setView("detail"); }} />
+      )}
+      {view === "guest-name" && (
+        <GuestNameView
+          onDone={(name) => {
+            setGuestName(name);
+            setView("guest-space");
+          }}
+        />
       )}
       {view === "guest-space" && guestSpace && (
-        <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName}
+        <GuestSpaceView
+          space={guestSpace}
+          memories={guestMemories}
+          guestName={guestName}
           onAddMemory={() => setView("guest-pick-type")}
-          onSel={(m) => { setSel(m); setView("detail"); }} />
-      )}
-          {view === "guest-space" && guestSpace && (
-            <React.Suspense fallback={<div style={{color:"white",padding:40}}>Loading...</div>}>
-              <GuestSpaceView space={guestSpace} memories={guestMemories} guestName={guestName}
-                onAddMemory={() => setView("guest-pick-type")}
-                onSel={(m) => { setSel(m); setView("detail"); }} />
-            </React.Suspense>
-          )}
+          onSel={(m) => {
+            setSel(m);
+            setView("detail");
+          }}
         />
       )}
       {view === "guest-pick-type" && (
